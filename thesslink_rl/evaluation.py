@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from environment import GRID_SIZE, NUM_POIS
+from .environment import GRID_SIZE, NUM_POIS
 
 
 @dataclass

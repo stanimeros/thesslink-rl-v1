@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thesslink-rl"
+version = "0.1.0"
+description = "Multi-agent grid negotiation environment for EPyMARL"
+requires-python = ">=3.9"
+dependencies = [
+    "gymnasium>=0.29.0",
+    "numpy>=1.24.0",
+    "pyyaml>=6.0",
+    "matplotlib>=3.7.0",
+]
+
+[project.entry-points."gymnasium.envs"]
+__root__ = "thesslink_rl.__init__"
+
+[tool.setuptools.packages.find]
+include = ["thesslink_rl*"]
+
+[tool.setuptools.package-data]
+thesslink_rl = ["models/*.yaml"]

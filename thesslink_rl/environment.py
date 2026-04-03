@@ -1,16 +1,13 @@
-"""PettingZoo Parallel environment: 10x10 grid with obstacles, POIs, and comms."""
+"""Core grid environment: 10x10 grid with obstacles, POIs, and comms."""
 
 from __future__ import annotations
 
-import functools
 from typing import TYPE_CHECKING, Dict, Optional
 
 import numpy as np
-from gymnasium import spaces
-from pettingzoo import ParallelEnv
 
 if TYPE_CHECKING:
-    from evaluation import AgentConfig
+    from .evaluation import AgentConfig
 
 GRID_SIZE = 10
 NUM_OBSTACLES = 10  # 10% of 100 cells
@@ -18,6 +15,7 @@ NUM_POIS = 3
 NUM_AGENTS = 2
 COMM_DIM = NUM_POIS  # each agent broadcasts its POI scores
 MAX_EPISODE_STEPS = 60
+ACTION_DIM = 5  # 0=stay, 1=up, 2=down, 3=left, 4=right
 
 # Grid channel indices (C, H, W) with C=3
 CH_OBSTACLE = 0
@@ -25,8 +23,11 @@ CH_POI = 1
 CH_SELF = 2
 NUM_CHANNELS = 3
 
+# Flat observation size: grid (C*H*W) + comm (COMM_DIM)
+OBS_FLAT_SIZE = NUM_CHANNELS * GRID_SIZE * GRID_SIZE + COMM_DIM
 
-class GridNegotiationEnv(ParallelEnv):
+
+class GridNegotiationEnv:
     """Two agents negotiate over POIs then navigate to the agreed one."""
 
     metadata = {"name": "grid_negotiation_v0", "render_modes": ["human"]}
@@ -37,7 +38,6 @@ class GridNegotiationEnv(ParallelEnv):
         render_mode: Optional[str] = None,
         seed: int = 0,
     ):
-        super().__init__()
         self.render_mode = render_mode
         self._seed = seed
         self.possible_agents = [f"agent_{i}" for i in range(NUM_AGENTS)]
@@ -47,19 +47,6 @@ class GridNegotiationEnv(ParallelEnv):
 
         self._rng = np.random.RandomState(seed)
         self._build_static_map()
-
-    # --- PettingZoo API ---------------------------------------------------
-
-    @functools.lru_cache(maxsize=None)
-    def observation_space(self, agent: str) -> spaces.Dict:
-        return spaces.Dict({
-            "grid": spaces.Box(0.0, 1.0, (NUM_CHANNELS, GRID_SIZE, GRID_SIZE), np.float32),
-            "comm": spaces.Box(0.0, 1.0, (COMM_DIM,), np.float32),
-        })
-
-    @functools.lru_cache(maxsize=None)
-    def action_space(self, agent: str) -> spaces.Discrete:
-        return spaces.Discrete(5)  # 0=stay, 1=up, 2=down, 3=left, 4=right
 
     def reset(self, seed=None, options=None) -> tuple[Dict, Dict]:
         if seed is not None:

@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
 
-from environment import GRID_SIZE, GridNegotiationEnv
+from .environment import GRID_SIZE, GridNegotiationEnv
 
 COLORS = {
     "empty": "#f0f0f0",
