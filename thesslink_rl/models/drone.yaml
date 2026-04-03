@@ -1,6 +1,5 @@
 name: Drone
-privacy_emphasis: 1.0
+privacy_emphasis: 0.5
 
 energy_model: linear
-energy_per_step: 1.0
 energy_exponential_gamma: 0.12

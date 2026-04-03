@@ -26,7 +26,6 @@ class AgentConfig:
     name: str
     privacy_emphasis: float         # 0-1, higher = prefers POIs far from spawn
     energy_model: str               # "linear" or "exponential"
-    energy_per_step: float
     energy_exponential_gamma: float
 
     @classmethod
@@ -37,7 +36,6 @@ class AgentConfig:
             name=d["name"],
             privacy_emphasis=d.get("privacy_emphasis", 0.5),
             energy_model=d.get("energy_model", "linear"),
-            energy_per_step=d.get("energy_per_step", 1.0),
             energy_exponential_gamma=d.get("energy_exponential_gamma", 0.12),
         )
 
@@ -68,8 +66,8 @@ def _energy_cost(dist: int, cfg: AgentConfig) -> float:
     """Total energy to travel *dist* steps under the agent's energy model."""
     if cfg.energy_model == "exponential":
         gamma = cfg.energy_exponential_gamma
-        return cfg.energy_per_step * (1 - np.exp(-gamma * dist)) / gamma
-    return cfg.energy_per_step * dist
+        return (1 - np.exp(-gamma * dist)) / gamma
+    return float(dist)
 
 
 def _energy_score(
@@ -140,7 +138,7 @@ def compute_poi_scores(
     if cfg is None:
         cfg = AgentConfig(
             name="default", privacy_emphasis=0.0,
-            energy_model="linear", energy_per_step=1.0,
+            energy_model="linear",
             energy_exponential_gamma=0.12,
         )
 

@@ -1,6 +1,5 @@
 name: Human
-privacy_emphasis: 1.0
+privacy_emphasis: 0.7
 
 energy_model: exponential
-energy_per_step: 1.0
 energy_exponential_gamma: 0.12
