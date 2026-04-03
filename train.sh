@@ -85,7 +85,8 @@ fi
 # ── Setup ────────────────────────────────────────────────────────────────
 
 log "Pulling latest changes..."
-git pull origin main || warn "git pull failed, continuing with local code"
+git fetch origin main
+git reset --hard origin/main
 
 log "Killing previous training processes..."
 kill_training
