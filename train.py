@@ -121,7 +121,7 @@ def main():
     cfg_1 = AgentConfig.from_yaml(args.agent1_config)
     agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
     for i, c in enumerate([cfg_0, cfg_1]):
-        print(f"Agent {i}: {c.name} ({c.energy_model}, {c.max_steps}steps, {c.operational_type})")
+        print(f"Agent {i}: {c.name} (energy={c.energy_model}, privacy={c.privacy_emphasis})")
 
     env = GridNegotiationEnv(agent_configs=agent_configs, seed=args.seed)
     model = HybridAgent().to(device)

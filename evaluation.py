@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import yaml
@@ -17,12 +16,9 @@ class AgentConfig:
     """Parsed agent model from a YAML file."""
     name: str
     privacy_emphasis: float         # 0-1, higher = prefers POIs far from spawn
-    max_steps: int                  # energy budget in steps
     energy_model: str               # "linear" or "exponential"
     energy_per_step: float
     energy_exponential_gamma: float
-    operational_type: str           # "full_grid" or "l_inf_from_spawn"
-    max_radius_cells: Optional[int] # None for full_grid
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "AgentConfig":
@@ -31,12 +27,9 @@ class AgentConfig:
         return cls(
             name=d["name"],
             privacy_emphasis=d.get("privacy_emphasis", 0.5),
-            max_steps=d.get("max_steps", 60),
             energy_model=d.get("energy_model", "linear"),
             energy_per_step=d.get("energy_per_step", 1.0),
             energy_exponential_gamma=d.get("energy_exponential_gamma", 0.12),
-            operational_type=d.get("operational_type", "full_grid"),
-            max_radius_cells=d.get("max_radius_cells"),
         )
 
 
@@ -55,27 +48,20 @@ def _energy_cost(dist: int, cfg: AgentConfig) -> float:
 def _energy_score(
     spawn: tuple[int, int],
     poi: tuple[int, int],
-    obstacle_map: np.ndarray,
     cfg: AgentConfig,
 ) -> float:
-    """How affordable the POI is given the agent's energy budget and range.
+    """How cheap it is to reach the POI under the agent's energy model.
 
-    Returns 0 if the POI is unreachable (out of range or over budget),
-    otherwise scales from 0 (barely reachable) to 1 (very cheap to reach).
+    Normalised against the maximum possible travel cost on the grid so
+    the result is in [0, 1]: 1 = very cheap, 0 = maximally expensive.
     """
     dist = manhattan(spawn, poi)
-
-    if cfg.operational_type == "l_inf_from_spawn" and cfg.max_radius_cells is not None:
-        linf = max(abs(poi[0] - spawn[0]), abs(poi[1] - spawn[1]))
-        if linf > cfg.max_radius_cells:
-            return 0.0
-
+    max_dist = 2 * (GRID_SIZE - 1)
     cost = _energy_cost(dist, cfg)
-    budget = cfg.energy_per_step * cfg.max_steps
-    if cost >= budget:
-        return 0.0
-
-    return float(np.clip(1.0 - cost / budget, 0.0, 1.0))
+    max_cost = _energy_cost(max_dist, cfg)
+    if max_cost == 0:
+        return 1.0
+    return float(np.clip(1.0 - cost / max_cost, 0.0, 1.0))
 
 
 def _privacy_score(
@@ -115,16 +101,15 @@ def compute_poi_scores(
 
     if cfg is None:
         cfg = AgentConfig(
-            name="default", privacy_emphasis=0.0, max_steps=60,
+            name="default", privacy_emphasis=0.0,
             energy_model="linear", energy_per_step=1.0,
             energy_exponential_gamma=0.12,
-            operational_type="full_grid", max_radius_cells=None,
         )
 
     p = cfg.privacy_emphasis
     scores = np.zeros(NUM_POIS, dtype=np.float32)
     for i, poi in enumerate(poi_positions):
-        e = _energy_score(spawn, poi, obstacle_map, cfg)
+        e = _energy_score(spawn, poi, cfg)
         priv = _privacy_score(spawn, poi)
         scores[i] = (1.0 - p) * e + p * priv
     return np.clip(scores, 0.0, 1.0)

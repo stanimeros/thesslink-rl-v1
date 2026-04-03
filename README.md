@@ -44,13 +44,12 @@ Discrete(5): stay, up, down, left, right.
 ## POI Scoring Formula
 
 ```
-score = w_reach × reachability + w_central × centrality + w_privacy × privacy
+score = (1 - p) × energy + p × privacy       where p = privacy_emphasis
 ```
 
-Each factor is derived from the agent's YAML config (`models/*.yaml`):
-- **Reachability** — energy cost (linear or exponential) vs budget (`max_steps`), obstacle clearance, and operational range (`l_inf_from_spawn` or `full_grid`). POIs outside a drone's radius score 0.
-- **Centrality** — distance from grid centre.
-- **Privacy** — how secluded the POI is (weighted by `privacy_emphasis` from config).
+Only two factors, both derived from the agent's YAML config (`models/*.yaml`):
+- **Energy** — how cheap is it to reach the POI? Based on energy cost (linear or exponential model) normalised against max grid distance.
+- **Privacy** — does visiting the POI reveal the agent's spawn location? A POI close to spawn is low privacy (an observer could infer where the agent started). Distant POIs are high privacy.
 
 Agents have **no visibility of each other** — cooperation must emerge through negotiation only.
 
@@ -62,12 +61,9 @@ Define agent types as YAML files in `models/`:
 # models/drone.yaml
 name: Drone
 privacy_emphasis: 1.0
-max_steps: 60
 energy_model: linear
 energy_per_step: 1.0
 energy_exponential_gamma: 0.12
-operational_type: l_inf_from_spawn
-max_radius_cells: 6
 ```
 
 Pass configs to training:
