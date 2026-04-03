@@ -12,9 +12,15 @@ from typing import Dict, Optional
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.animation import FuncAnimation
 
-from .environment import GRID_SIZE, GridNegotiationEnv
+from .environment import (
+    ACT_ACCEPT,
+    ACT_SUGGEST_BASE,
+    GRID_SIZE,
+    NUM_MOVE_ACTIONS,
+    NUM_SUGGEST_ACTIONS,
+    GridNegotiationEnv,
+)
 from .evaluation import (
     AgentConfig,
     compute_eval_heatmap,
@@ -377,39 +383,50 @@ def replay_episode(
     env: GridNegotiationEnv,
     agent_configs: Optional[Dict[str, AgentConfig]] = None,
     save_path: str | bool = True,
-    interval_ms: int = 400,
+    neg_interval_ms: int = 1200,
+    nav_interval_ms: int = 250,
     show: bool = True,
     algo: str | None = None,
     env_name: str | None = None,
 ):
     """Animate an episode from a list of frame snapshots.
 
+    Negotiation frames use *neg_interval_ms* (slow) and navigation frames
+    use *nav_interval_ms* (fast).  Each frame's action description is
+    rendered as a subtitle on the centre panel.
+
     If *agent_configs* is provided, each frame renders the grid in the
     centre with **dynamic** evaluation heatmaps for each agent on either
-    side (3-panel layout).  Heatmaps are recomputed every frame from the
-    agent's current position (energy changes) while privacy stays fixed
-    from spawn.
+    side (3-panel layout).
     """
+    from io import BytesIO
+    from PIL import Image
+
     has_heatmaps = agent_configs is not None
     agents = env.possible_agents
+    dpi = 100
 
     if has_heatmaps:
-        fig, axes = plt.subplots(1, 3, figsize=(19, 6))
+        fig, axes = plt.subplots(1, 3, figsize=(19, 7))
         ax_left, ax_mid, ax_right = axes
         agent_axes = {agents[0]: ax_left, agents[1]: ax_right}
         spawn_positions = frames[0].get(
             "spawn_positions", frames[0]["agent_positions"]
         )
     else:
-        fig, ax_mid = plt.subplots(1, 1, figsize=(6, 6))
+        fig, ax_mid = plt.subplots(1, 1, figsize=(7, 7))
 
-    def _draw(idx):
-        frame = frames[idx]
+    pil_frames: list[Image.Image] = []
+    durations: list[int] = []
+    target_size: tuple[int, int] | None = None
+
+    for idx, frame in enumerate(frames):
         env.agent_positions = frame["agent_positions"]
         env.phase = frame["phase"]
         env.agreed_poi = frame.get("agreed_poi")
         env.last_suggestion = frame.get("last_suggestion", {})
         env.neg_turn = frame.get("neg_turn")
+        action_desc = frame.get("action_desc", "")
 
         if has_heatmaps:
             all_scores = {}
@@ -438,24 +455,89 @@ def replay_episode(
             merged_scores = None
 
         ax_mid.clear()
-        render_grid(env, title=f"Step {frame['timestep']}", ax=ax_mid,
+        title = f"Step {frame['timestep']}"
+        if action_desc:
+            title += f"\n{action_desc}"
+        render_grid(env, title=title, ax=ax_mid,
                     show=False, poi_scores=merged_scores)
 
-    anim = FuncAnimation(fig, _draw, frames=len(frames),
-                         interval=interval_ms, repeat=False)
+        fig.subplots_adjust(left=0.02, right=0.98, top=0.90, bottom=0.02,
+                            wspace=0.15)
+        buf = BytesIO()
+        fig.savefig(buf, format="raw", dpi=dpi)
+        buf.seek(0)
+        w_px = int(fig.get_figwidth() * dpi)
+        h_px = int(fig.get_figheight() * dpi)
+        img = Image.frombuffer("RGBA", (w_px, h_px), buf.read(), "raw", "RGBA", 0, 1)
+        img = img.convert("RGB")
+        if target_size is None:
+            target_size = img.size
+        elif img.size != target_size:
+            img = img.resize(target_size, Image.LANCZOS)
+        pil_frames.append(img)
+        buf.close()
+
+        is_neg = frame["phase"] == "negotiation"
+        durations.append(neg_interval_ms if is_neg else nav_interval_ms)
+
     if save_path is True:
         save_path = _make_filename("episode_replay", "gif", algo, env_name)
-    if save_path:
+    if save_path and pil_frames:
         _ensure_out_dir()
-        plt.tight_layout()
-        anim.save(str(OUT_DIR / save_path), writer="pillow", dpi=100)
+        pil_frames[0].save(
+            str(OUT_DIR / save_path),
+            save_all=True,
+            append_images=pil_frames[1:],
+            duration=durations,
+            loop=0,
+        )
     if show:
         plt.show()
     plt.close(fig)
 
 
-def capture_frame(env: GridNegotiationEnv) -> dict:
-    """Snapshot the env state for replay_episode."""
+MOVE_NAMES = ["stay", "up", "down", "left", "right"]
+
+
+def describe_actions(
+    env: GridNegotiationEnv,
+    actions: Dict[str, int],
+) -> str:
+    """Build a human-readable one-liner for the actions about to be taken.
+
+    Call this **before** ``env.step(actions)`` so that phase / neg_turn
+    still reflect the pre-step state.
+    """
+    phase = env.phase
+    neg_turn = getattr(env, "neg_turn", None)
+    parts: list[str] = []
+    for agent, act in actions.items():
+        label = AGENT_LABELS.get(agent, agent[-1])
+        if phase == "negotiation":
+            if agent != neg_turn:
+                continue
+            if act == ACT_ACCEPT:
+                peer = [a for a in env.possible_agents if a != agent][0]
+                poi = env.last_suggestion.get(peer)
+                parts.append(f"{label} accepted P{poi}" if poi is not None else f"{label} accepted")
+            elif ACT_SUGGEST_BASE <= act < ACT_SUGGEST_BASE + NUM_SUGGEST_ACTIONS:
+                poi_idx = act - ACT_SUGGEST_BASE
+                parts.append(f"{label} suggested P{poi_idx}")
+        else:
+            if 0 <= act < NUM_MOVE_ACTIONS:
+                parts.append(f"{label}:{MOVE_NAMES[act]}")
+    return "  |  ".join(parts)
+
+
+def capture_frame(
+    env: GridNegotiationEnv,
+    action_desc: str = "",
+) -> dict:
+    """Snapshot the env state for replay_episode.
+
+    *action_desc* is a pre-built string from ``describe_actions`` describing
+    what happened this step.  Pass an empty string for the initial frame.
+    """
     return {
         "agent_positions": {a: list(pos) for a, pos in env.agent_positions.items()},
         "spawn_positions": {a: list(pos) for a, pos in env.spawn_positions.items()},
@@ -464,4 +546,5 @@ def capture_frame(env: GridNegotiationEnv) -> dict:
         "agreed_poi": getattr(env, "agreed_poi", None),
         "last_suggestion": dict(getattr(env, "last_suggestion", {})),
         "neg_turn": getattr(env, "neg_turn", None),
+        "action_desc": action_desc,
     }

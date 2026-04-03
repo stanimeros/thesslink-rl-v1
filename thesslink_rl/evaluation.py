@@ -1,11 +1,17 @@
 """Preference scoring: each agent rates every POI based on energy and privacy.
 
-Energy score is dynamic -- computed from the agent's current position to each
-POI using BFS (respecting obstacles).
+Energy cost is dynamic — computed from the agent's current position to each
+POI using BFS (respecting obstacles).  The ``energy_model`` shapes the cost
+curve: ``linear`` means each step costs equally; ``exponential`` means cost
+per step grows, so distant POIs are disproportionately expensive.
 
-Privacy score is static -- computed from the agent's spawn location to each
+Privacy score is static — computed from the agent's spawn location to each
 POI using BFS.  A POI far from spawn is high privacy because an observer
 cannot easily infer the agent's origin.
+
+Both components are **min-max normalised across the candidate POIs** so they
+occupy the same [0, 1] scale.  This ensures ``privacy_emphasis`` blends them
+fairly regardless of energy model or grid layout.
 """
 
 from __future__ import annotations
@@ -62,59 +68,24 @@ def bfs_distances(
     return dist
 
 
-def _energy_cost(dist: int, cfg: AgentConfig) -> float:
-    """Total energy to travel *dist* steps under the agent's energy model."""
+def _energy_cost(dist: float, cfg: AgentConfig) -> float:
+    """Total energy to travel *dist* steps under the agent's energy model.
+
+    ``linear``:      cost = dist
+    ``exponential``:  cost = (1 - e^{-γ·dist}) / γ   (saturates for large dist)
+    """
     if cfg.energy_model == "exponential":
         gamma = cfg.energy_exponential_gamma
-        return (1 - np.exp(-gamma * dist)) / gamma
+        return float((1.0 - np.exp(-gamma * dist)) / gamma)
     return float(dist)
 
 
-def _energy_score(
-    current_pos: tuple[int, int],
-    poi: tuple[int, int],
-    obstacle_map: np.ndarray,
-    cfg: AgentConfig,
-) -> float:
-    """How cheap it is to reach the POI from the current position (BFS).
-
-    Normalised against the maximum possible BFS cost on the grid so
-    the result is in [0, 1]: 1 = very cheap, 0 = maximally expensive.
-    """
-    bfs = bfs_distances(current_pos, obstacle_map)
-    dist = bfs[poi[0], poi[1]]
-    if np.isinf(dist):
-        return 0.0
-    max_dist = float(np.max(bfs[np.isfinite(bfs)]))
-    if max_dist == 0:
-        return 1.0
-    cost = _energy_cost(int(dist), cfg)
-    max_cost = _energy_cost(int(max_dist), cfg)
-    if max_cost == 0:
-        return 1.0
-    return float(np.clip(1.0 - cost / max_cost, 0.0, 1.0))
-
-
-def _privacy_score(
-    spawn: tuple[int, int],
-    poi: tuple[int, int],
-    obstacle_map: np.ndarray,
-) -> float:
-    """How well visiting this POI conceals the agent's spawn location (BFS).
-
-    A POI close to spawn is low privacy -- an observer can narrow down
-    the agent's origin.  A distant POI is high privacy.
-
-    Returns 0.0 (POI at spawn) to 1.0 (maximally far).
-    """
-    bfs = bfs_distances(spawn, obstacle_map)
-    dist = bfs[poi[0], poi[1]]
-    if np.isinf(dist):
-        return 0.0
-    max_dist = float(np.max(bfs[np.isfinite(bfs)]))
-    if max_dist == 0:
-        return 0.0
-    return float(dist / max_dist)
+def _minmax(arr: np.ndarray) -> np.ndarray:
+    """Min-max normalise *arr* to [0, 1].  Returns zeros if range is 0."""
+    lo, hi = float(arr.min()), float(arr.max())
+    if hi - lo < 1e-12:
+        return np.full_like(arr, 0.5)
+    return (arr - lo) / (hi - lo)
 
 
 def compute_poi_scores(
@@ -126,12 +97,15 @@ def compute_poi_scores(
 ) -> np.ndarray:
     """Return an array of shape (NUM_POIS,) with scores in [0, 1].
 
-    Energy is dynamic (BFS from *current_pos*), privacy is static (BFS
-    from *spawn*).
-
-    Formula:
-        score = (1 - p) * energy + p * privacy
-    where p = cfg.privacy_emphasis.
+    1. Raw energy cost — BFS from *current_pos* to each POI, shaped by
+       ``cfg.energy_model``.  Lower cost → higher energy score.
+    2. Raw privacy distance — BFS from *spawn* to each POI.
+       Greater distance → higher privacy score.
+    3. Each component is **min-max normalised across the POIs** so the
+       cheapest POI gets energy = 1 and the most expensive gets 0;
+       the farthest-from-spawn POI gets privacy = 1 and the closest
+       gets 0.
+    4. Final score = (1 - p) · energy_norm + p · privacy_norm.
     """
     assert len(poi_positions) == NUM_POIS
 
@@ -142,13 +116,24 @@ def compute_poi_scores(
             energy_exponential_gamma=0.12,
         )
 
+    bfs_cur = bfs_distances(current_pos, obstacle_map)
+    bfs_spn = bfs_distances(spawn, obstacle_map)
+
+    raw_energy = np.zeros(NUM_POIS, dtype=np.float64)
+    raw_privacy = np.zeros(NUM_POIS, dtype=np.float64)
+
+    for i, (pr, pc) in enumerate(poi_positions):
+        d_cur = bfs_cur[pr, pc]
+        d_spn = bfs_spn[pr, pc]
+        raw_energy[i] = _energy_cost(d_cur, cfg) if np.isfinite(d_cur) else 1e9
+        raw_privacy[i] = float(d_spn) if np.isfinite(d_spn) else 0.0
+
+    energy_norm = 1.0 - _minmax(raw_energy)   # low cost → 1
+    privacy_norm = _minmax(raw_privacy)        # far from spawn → 1
+
     p = cfg.privacy_emphasis
-    scores = np.zeros(NUM_POIS, dtype=np.float32)
-    for i, poi in enumerate(poi_positions):
-        e = _energy_score(current_pos, poi, obstacle_map, cfg)
-        priv = _privacy_score(spawn, poi, obstacle_map)
-        scores[i] = (1.0 - p) * e + p * priv
-    return np.clip(scores, 0.0, 1.0)
+    scores = (1.0 - p) * energy_norm + p * privacy_norm
+    return scores.astype(np.float32)
 
 
 def compute_eval_heatmap(
@@ -160,25 +145,24 @@ def compute_eval_heatmap(
 ) -> np.ndarray:
     """Compute a 2-D evaluation heatmap for visualization.
 
-    Each cell's value reflects how desirable it is, based on proximity
-    to the POIs weighted by their scores.  Energy is dynamic (BFS from
-    *current_pos*), privacy is static (BFS from *spawn*).
+    Each cell's value reflects how desirable it is as a destination,
+    based on proximity to the POIs weighted by their scores.
 
-    The best POI cell = 1.0; values fall off with BFS distance to each
-    POI.  Obstacles = 0.
+    The best-scored POI cell = 1.0; values fall off with BFS distance
+    to each POI, normalised per-POI so every POI's influence fades at
+    the same rate.  Obstacles = 0.
     """
     poi_scores = compute_poi_scores(
         current_pos, spawn, poi_positions, obstacle_map, cfg,
     )
 
-    bfs_cur = bfs_distances(current_pos, obstacle_map)
-    max_bfs = float(np.max(bfs_cur[np.isfinite(bfs_cur)]))
-    if max_bfs == 0:
-        max_bfs = 1.0
-
     poi_bfs: list[np.ndarray] = []
+    poi_max_bfs: list[float] = []
     for poi in poi_positions:
-        poi_bfs.append(bfs_distances(poi, obstacle_map))
+        b = bfs_distances(poi, obstacle_map)
+        poi_bfs.append(b)
+        finite = b[np.isfinite(b)]
+        poi_max_bfs.append(float(finite.max()) if len(finite) > 0 else 1.0)
 
     best_poi_score = float(poi_scores.max())
     if best_poi_score == 0:
@@ -194,7 +178,8 @@ def compute_eval_heatmap(
                 d_to_poi = poi_bfs[i][r, c]
                 if np.isinf(d_to_poi):
                     continue
-                falloff = max(1.0 - d_to_poi / max_bfs, 0.0)
+                max_d = poi_max_bfs[i] if poi_max_bfs[i] > 0 else 1.0
+                falloff = max(1.0 - d_to_poi / max_d, 0.0)
                 val = (poi_scores[i] / best_poi_score) * falloff
                 best_val = max(best_val, val)
             heatmap[r, c] = best_val

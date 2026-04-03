@@ -109,6 +109,7 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
     from thesslink_rl.visualization import (
         _make_filename,
         capture_frame,
+        describe_actions,
         plot_training_curves,
         render_eval_heatmaps,
         replay_episode,
@@ -183,16 +184,17 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
     frames = [capture_frame(env)]
 
     for step in range(40):
+        if not env.agents:
+            break
         actions = {}
         for agent in env.agents:
             avail = env.get_avail_actions(agent)
             valid = [i for i, a in enumerate(avail) if a == 1]
             actions[agent] = rng.choice(valid)
 
-        if not env.agents:
-            break
+        desc = describe_actions(env, actions)
         obs, rewards, terminated, truncated, infos = env.step(actions)
-        frames.append(capture_frame(env))
+        frames.append(capture_frame(env, action_desc=desc))
         if all(terminated.values()) or all(truncated.values()):
             break
 

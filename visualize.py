@@ -28,6 +28,7 @@ from thesslink_rl.evaluation import AgentConfig, compute_poi_scores
 from thesslink_rl.visualization import (
     _make_filename,
     capture_frame,
+    describe_actions,
     plot_training_curves,
     render_eval_heatmaps,
     replay_episode,
@@ -36,7 +37,7 @@ from thesslink_rl.visualization import (
 
 PROJECT = Path(__file__).resolve().parent
 PLOTS_DIR = PROJECT / "plots"
-SEED = 43
+SEED = 45
 
 ALGO_COLORS = {
     "iql": "#e74c3c",
@@ -187,8 +188,9 @@ def generate_heatmaps_and_replays(algos: list[str]):
                 avail = env.get_avail_actions(agent)
                 valid = [i for i, a in enumerate(avail) if a == 1]
                 actions[agent] = rng.choice(valid)
+            desc = describe_actions(env, actions)
             obs, rewards, terminated, truncated, infos = env.step(actions)
-            frames.append(capture_frame(env))
+            frames.append(capture_frame(env, action_desc=desc))
             if all(terminated.values()) or all(truncated.values()):
                 break
 
