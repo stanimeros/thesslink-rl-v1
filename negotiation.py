@@ -85,6 +85,7 @@ def _select_poi(poi_scores: Dict[str, np.ndarray]) -> int:
     return int(np.argmax(products))
 
 
+@torch.no_grad()
 def collect_negotiation_rollout(
     env: GridNegotiationEnv,
     agents_models: Dict[str, HybridAgent],

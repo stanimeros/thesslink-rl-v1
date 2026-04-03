@@ -55,9 +55,9 @@ def _flatten_rollout(rollout: Dict[str, list], device: torch.device):
     return {
         "grids": torch.stack(grids).to(device),
         "comms": torch.stack(comms).unsqueeze(1).to(device),
-        "actions": torch.stack(actions).to(device),
-        "logprobs": torch.stack(logprobs).to(device),
-        "values": torch.stack(values).to(device),
+        "actions": torch.stack(actions).to(device).detach(),
+        "logprobs": torch.stack(logprobs).to(device).detach(),
+        "values": torch.stack(values).to(device).detach(),
         "rewards": torch.tensor(rewards, dtype=torch.float32, device=device),
         "dones": torch.tensor(dones, dtype=torch.float32, device=device),
     }
