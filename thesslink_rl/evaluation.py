@@ -190,3 +190,15 @@ def compute_eval_heatmap(
 def golden_mean_reward(score_a: float, score_b: float) -> float:
     """Golden Mean reward: product of both agents' scores for the reached POI."""
     return score_a * score_b
+
+
+def optimal_poi(
+    scores: dict[str, np.ndarray],
+    agents: list[str],
+) -> int:
+    """Return the POI index that maximises the golden-mean (product) of
+    both agents' scores — i.e. the best common choice."""
+    gm = np.ones(NUM_POIS, dtype=np.float64)
+    for a in agents:
+        gm *= scores[a].astype(np.float64)
+    return int(np.argmax(gm))

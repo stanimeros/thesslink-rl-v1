@@ -31,6 +31,7 @@ from .evaluation import (
     bfs_distances,
     compute_poi_scores,
     golden_mean_reward,
+    optimal_poi,
 )
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
@@ -81,7 +82,9 @@ class GridNegotiationGymEnv(gym.Env):
 
         self._poi_scores: Dict[str, np.ndarray] = {}
         self._agreed_poi: int | None = None
+        self._optimal_poi: int = 0
         self._prev_dist: Dict[str, float] = {}
+        self._nav_steps: int = 0
 
     def _flatten_obs(self, obs_dict: Dict[str, np.ndarray]) -> np.ndarray:
         """Concatenate the unified obs dict into a flat vector of size OBS_FLAT_SIZE."""
@@ -112,7 +115,9 @@ class GridNegotiationGymEnv(gym.Env):
             self._env.poi_scores[agent] = scores
 
         self._agreed_poi = None
+        self._optimal_poi = optimal_poi(self._poi_scores, agents)
         self._prev_dist = {}
+        self._nav_steps = 0
 
         obs_tuple = tuple(
             self._flatten_obs(self._env._get_obs(a)) for a in agents
@@ -120,6 +125,7 @@ class GridNegotiationGymEnv(gym.Env):
 
         info = {
             "poi_scores": {k: v.tolist() for k, v in self._poi_scores.items()},
+            "optimal_poi": self._optimal_poi,
         }
         return obs_tuple, info
 
@@ -155,6 +161,7 @@ class GridNegotiationGymEnv(gym.Env):
                 self._prev_dist[a] = self._bfs_dist_to_target(a)
 
         if self._agreed_poi is not None and not just_agreed:
+            self._nav_steps += 1
             target = self._env.poi_positions[self._agreed_poi]
             reached = False
             for i, a in enumerate(agents):
@@ -166,6 +173,9 @@ class GridNegotiationGymEnv(gym.Env):
                 rewards[i] += (old_dist - new_dist) * 0.05
                 self._prev_dist[a] = new_dist
 
+            for i in range(self.n_agents):
+                rewards[i] -= 0.01
+
             if reached:
                 sa = self._poi_scores[agents[0]][self._agreed_poi]
                 sb = self._poi_scores[agents[1]][self._agreed_poi]
@@ -176,13 +186,18 @@ class GridNegotiationGymEnv(gym.Env):
         truncated = all(truncated_d[a] for a in agents)
 
         reached = any("reached_poi" in infos_d.get(a, {}) for a in agents)
-        # Logged by EPyMARL as test_negotiation_agreed_mean (fraction of eval
-        # episodes where agents agreed on a POI before the episode ended).
         negotiation_agreed = self._env.agreed_poi is not None
+        agreed_optimal = (
+            negotiation_agreed and self._agreed_poi == self._optimal_poi
+        )
+        reached_optimal = reached and self._agreed_poi == self._optimal_poi
+
         info: dict[str, Any] = {
             "battle_won": reached,
             "reached_poi": int(reached),
             "negotiation_agreed": float(negotiation_agreed),
+            "negotiation_optimal": float(agreed_optimal),
+            "reached_optimal": float(reached_optimal),
         }
 
         return obs_tuple, rewards, done, truncated, info

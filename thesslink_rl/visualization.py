@@ -330,18 +330,27 @@ def plot_training_curves(
     (Policy-gradient / TD *losses* are training objectives logged separately by EPyMARL,
     not environment returns — omit here to focus on eval behaviour.)
     """
-    fig, axes = plt.subplots(1, 4, figsize=(20, 4))
-
     panels = [
         ("common_reward", "Mean common reward", "#2ecc71"),
         ("negotiate", "Negotiate rate (%)", "#9b59b6"),
+        ("negotiate_optimal", "Optimal negotiate (%)", "#8e44ad"),
         ("reach", "Reach rate (%)", "#3498db"),
+        ("reach_optimal", "Optimal reach (%)", "#2980b9"),
         ("ep_len", "Episode length", "#e67e22"),
     ]
 
+    active_panels = [p for p in panels if len(stats.get(p[0], [])) > 0]
+    if not active_panels:
+        active_panels = panels
+
+    n_panels = len(active_panels)
+    fig, axes = plt.subplots(1, n_panels, figsize=(5 * n_panels, 4))
+    if n_panels == 1:
+        axes = [axes]
+
     x = np.asarray(timesteps, dtype=float) if timesteps is not None else None
 
-    for ax, (key, label, color) in zip(axes, panels):
+    for ax, (key, label, color) in zip(axes, active_panels):
         data = np.array(stats.get(key, []))
         if len(data) == 0:
             ax.set_title(label)
@@ -359,7 +368,7 @@ def plot_training_curves(
         ax.legend(fontsize=8)
         ax.set_title(label, fontsize=11)
         ax.grid(True, alpha=0.3)
-        if key in ("negotiate", "reach"):
+        if key in ("negotiate", "reach", "negotiate_optimal", "reach_optimal"):
             ax.set_ylim(0, 105)
         if key == "ep_len":
             ax.set_ylim(0, 105)
