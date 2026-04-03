@@ -30,7 +30,7 @@ from .evaluation import (
     AgentConfig,
     bfs_distances,
     compute_poi_scores,
-    golden_mean_reward,
+    negotiation_quality,
     optimal_poi,
 )
 
@@ -153,10 +153,10 @@ class GridNegotiationGymEnv(gym.Env):
         )
         if just_agreed:
             self._agreed_poi = self._env.agreed_poi
-            sa = self._poi_scores[agents[0]][self._agreed_poi]
-            sb = self._poi_scores[agents[1]][self._agreed_poi]
-            gm = golden_mean_reward(float(sa), float(sb))
-            rewards = [gm * 5.0] * self.n_agents
+            quality = negotiation_quality(
+                self._agreed_poi, self._poi_scores, agents,
+            )
+            rewards = [quality * 5.0] * self.n_agents
             for a in agents:
                 self._prev_dist[a] = self._bfs_dist_to_target(a)
 
@@ -177,10 +177,10 @@ class GridNegotiationGymEnv(gym.Env):
                 rewards[i] -= 0.01
 
             if reached:
-                sa = self._poi_scores[agents[0]][self._agreed_poi]
-                sb = self._poi_scores[agents[1]][self._agreed_poi]
-                gm = golden_mean_reward(float(sa), float(sb))
-                rewards = [gm * 10.0] * self.n_agents
+                quality = negotiation_quality(
+                    self._agreed_poi, self._poi_scores, agents,
+                )
+                rewards = [quality * 10.0] * self.n_agents
 
         done = all(terminated_d[a] for a in agents)
         truncated = all(truncated_d[a] for a in agents)
@@ -190,14 +190,12 @@ class GridNegotiationGymEnv(gym.Env):
         agreed_optimal = (
             negotiation_agreed and self._agreed_poi == self._optimal_poi
         )
-        reached_optimal = reached and self._agreed_poi == self._optimal_poi
 
         info: dict[str, Any] = {
             "battle_won": reached,
             "reached_poi": int(reached),
             "negotiation_agreed": float(negotiation_agreed),
             "negotiation_optimal": float(agreed_optimal),
-            "reached_optimal": float(reached_optimal),
         }
 
         return obs_tuple, rewards, done, truncated, info

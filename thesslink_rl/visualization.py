@@ -335,7 +335,6 @@ def plot_training_curves(
         ("negotiate", "Negotiate rate (%)", "#9b59b6"),
         ("negotiate_optimal", "Optimal negotiate (%)", "#8e44ad"),
         ("reach", "Reach rate (%)", "#3498db"),
-        ("reach_optimal", "Optimal reach (%)", "#2980b9"),
         ("ep_len", "Episode length", "#e67e22"),
     ]
 

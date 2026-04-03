@@ -74,14 +74,13 @@ def plot_comparison_curves(
     save_path: str | None = None,
 ):
     """Plot all algorithms on the same figure for comparison."""
-    fig, axes = plt.subplots(1, 6, figsize=(32, 5))
+    fig, axes = plt.subplots(1, 5, figsize=(27, 5))
 
     panels = [
         ("test_return_mean", "Mean common reward", False),
         ("test_negotiation_agreed_mean", "Negotiate rate (%)", True),
         ("test_negotiation_optimal_mean", "Optimal negotiate (%)", True),
         ("test_battle_won_mean", "Reach rate (%)", True),
-        ("test_reached_optimal_mean", "Optimal reach (%)", True),
         ("test_ep_length_mean", "Episode length", False),
     ]
 
@@ -129,7 +128,6 @@ def plot_per_algo_curves(runs: dict[str, dict], window: int = 10):
         neg = metrics.get("test_negotiation_agreed_mean", {}).get("values", [])
         neg_opt = metrics.get("test_negotiation_optimal_mean", {}).get("values", [])
         reached = metrics.get("test_battle_won_mean", {}).get("values", [])
-        reach_opt = metrics.get("test_reached_optimal_mean", {}).get("values", [])
         epl = metrics.get("test_ep_length_mean", {}).get("values", [])
 
         stats = {
@@ -137,7 +135,6 @@ def plot_per_algo_curves(runs: dict[str, dict], window: int = 10):
             "negotiate": [v * 100.0 for v in neg],
             "negotiate_optimal": [v * 100.0 for v in neg_opt],
             "reach": [v * 100.0 for v in reached],
-            "reach_optimal": [v * 100.0 for v in reach_opt],
             "ep_len": epl,
         }
 
@@ -213,7 +210,7 @@ def print_summary(runs: dict[str, dict]):
     print()
     header = (
         f"  {'ALG':<7} {'T_ENV':>8} {'RETURN':>8} {'NEG%':>7} "
-        f"{'OPT_N%':>8} {'REACH%':>8} {'OPT_R%':>8} {'EP_LEN':>8}"
+        f"{'OPT_N%':>8} {'REACH%':>8} {'EP_LEN':>8}"
     )
     print(header)
     print("  " + "-" * (len(header) - 2))
@@ -222,7 +219,6 @@ def print_summary(runs: dict[str, dict]):
         neg = metrics.get("test_negotiation_agreed_mean", {}).get("values", [])
         neg_opt = metrics.get("test_negotiation_optimal_mean", {}).get("values", [])
         bw = metrics.get("test_battle_won_mean", {}).get("values", [])
-        reach_opt = metrics.get("test_reached_optimal_mean", {}).get("values", [])
         epl = metrics.get("test_ep_length_mean", {}).get("values", [])
         steps = metrics.get("test_return_mean", {}).get("steps", [])
 
@@ -235,7 +231,6 @@ def print_summary(runs: dict[str, dict]):
             f"{_pct(neg):>7} "
             f"{_pct(neg_opt):>8} "
             f"{_pct(bw):>8} "
-            f"{_pct(reach_opt):>8} "
             f"{epl[-1] if epl else 0:>8.1f}"
         )
     print()

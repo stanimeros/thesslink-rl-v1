@@ -187,9 +187,20 @@ def compute_eval_heatmap(
     return np.clip(heatmap, 0.0, 1.0)
 
 
-def golden_mean_reward(score_a: float, score_b: float) -> float:
-    """Golden Mean reward: product of both agents' scores for the reached POI."""
+def golden_mean(score_a: float, score_b: float) -> float:
+    """Golden Mean: product of both agents' scores for a POI."""
     return score_a * score_b
+
+
+def golden_mean_vector(
+    scores: dict[str, np.ndarray],
+    agents: list[str],
+) -> np.ndarray:
+    """Golden mean for every POI — shape (NUM_POIS,)."""
+    gm = np.ones(NUM_POIS, dtype=np.float64)
+    for a in agents:
+        gm *= scores[a].astype(np.float64)
+    return gm
 
 
 def optimal_poi(
@@ -198,7 +209,23 @@ def optimal_poi(
 ) -> int:
     """Return the POI index that maximises the golden-mean (product) of
     both agents' scores — i.e. the best common choice."""
-    gm = np.ones(NUM_POIS, dtype=np.float64)
-    for a in agents:
-        gm *= scores[a].astype(np.float64)
-    return int(np.argmax(gm))
+    return int(np.argmax(golden_mean_vector(scores, agents)))
+
+
+def negotiation_quality(
+    poi_idx: int,
+    scores: dict[str, np.ndarray],
+    agents: list[str],
+) -> float:
+    """How good is the chosen POI relative to the best possible?
+
+    Returns a value in [0, 1]:  1.0 = optimal choice, 0.0 = worst.
+    The ratio ``gm_chosen / gm_best`` directly measures decision quality
+    so the reward scales smoothly — a near-optimal pick is barely penalised,
+    a terrible pick gets almost nothing.
+    """
+    gm = golden_mean_vector(scores, agents)
+    best = float(gm.max())
+    if best < 1e-12:
+        return 0.0
+    return float(np.clip(gm[poi_idx] / best, 0.0, 1.0))
