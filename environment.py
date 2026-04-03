@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-import functools
-from typing import Dict, Optional
+from __future__ import annotations
 
-import gymnasium as gym
+import functools
+from typing import TYPE_CHECKING, Dict, Optional
+
 import numpy as np
 from gymnasium import spaces
 from pettingzoo import ParallelEnv
+
+if TYPE_CHECKING:
+    from evaluation import AgentConfig
 
 GRID_SIZE = 10
 NUM_OBSTACLES = 10  # 10% of 100 cells
@@ -29,16 +33,28 @@ class GridNegotiationEnv(ParallelEnv):
 
     metadata = {"name": "grid_negotiation_v0", "render_modes": ["human"]}
 
-    def __init__(self, render_mode: Optional[str] = None, seed: int = 0):
+    def __init__(
+        self,
+        agent_configs: Dict[str, AgentConfig] | None = None,
+        render_mode: Optional[str] = None,
+        seed: int = 0,
+    ):
         super().__init__()
         self.render_mode = render_mode
         self._seed = seed
         self.possible_agents = [f"agent_{i}" for i in range(NUM_AGENTS)]
         self.agents = list(self.possible_agents)
         self.timestep = 0
+        self.agent_configs = agent_configs or {}
+        self._max_steps = self._resolve_max_steps()
 
         self._rng = np.random.RandomState(seed)
         self._build_static_map()
+
+    def _resolve_max_steps(self) -> int:
+        if not self.agent_configs:
+            return MAX_EPISODE_STEPS
+        return max(cfg.max_steps for cfg in self.agent_configs.values())
 
     # --- PettingZoo API ---------------------------------------------------
 
@@ -60,10 +76,11 @@ class GridNegotiationEnv(ParallelEnv):
 
         self.agents = list(self.possible_agents)
         self.timestep = 0
-        self.agent_positions = {
-            "agent_0": self._random_free_cell(),
-            "agent_1": self._random_free_cell(),
-        }
+        self.agent_positions: Dict[str, list[int]] = {}
+        for agent in self.possible_agents:
+            self.agent_positions[agent] = self._random_free_cell()
+        self.spawn_positions = {a: list(p) for a, p in self.agent_positions.items()}
+
         self.comm_buffer: Dict[str, np.ndarray] = {
             a: np.zeros(COMM_DIM, dtype=np.float32) for a in self.agents
         }
@@ -82,7 +99,7 @@ class GridNegotiationEnv(ParallelEnv):
         obs = {a: self._get_obs(a) for a in self.agents}
         rewards = {a: 0.0 for a in self.agents}
         terminated = {a: False for a in self.agents}
-        truncated = {a: self.timestep >= MAX_EPISODE_STEPS for a in self.agents}
+        truncated = {a: self.timestep >= self._max_steps for a in self.agents}
         infos: Dict[str, dict] = {a: {"phase": self.phase} for a in self.agents}
 
         if self.phase == "navigation" and self.agreed_poi is not None:
@@ -127,8 +144,14 @@ class GridNegotiationEnv(ParallelEnv):
         dr, dc = [(0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)][action]
         r, c = self.agent_positions[agent]
         nr, nc = max(0, min(GRID_SIZE - 1, r + dr)), max(0, min(GRID_SIZE - 1, c + dc))
-        if not self.obstacle_map[nr, nc]:
-            self.agent_positions[agent] = [nr, nc]
+        if self.obstacle_map[nr, nc]:
+            return
+        cfg = self.agent_configs.get(agent)
+        if cfg and cfg.operational_type == "l_inf_from_spawn" and cfg.max_radius_cells is not None:
+            sr, sc = self.spawn_positions[agent]
+            if max(abs(nr - sr), abs(nc - sc)) > cfg.max_radius_cells:
+                return
+        self.agent_positions[agent] = [nr, nc]
 
     def _get_obs(self, agent: str) -> Dict[str, np.ndarray]:
         grid = np.zeros((NUM_CHANNELS, GRID_SIZE, GRID_SIZE), dtype=np.float32)

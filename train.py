@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.optim as optim
 
 from environment import COMM_DIM, GridNegotiationEnv
-from evaluation import golden_mean_reward
+from evaluation import AgentConfig, golden_mean_reward
 from models import HybridAgent
 from negotiation import collect_negotiation_rollout
 from navigation import collect_navigation_rollout
@@ -32,6 +32,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-grad-norm", type=float, default=0.5)
     p.add_argument("--update-epochs", type=int, default=4)
     p.add_argument("--device", type=str, default="cpu")
+    p.add_argument("--agent0-config", type=str, default="models/human.yaml")
+    p.add_argument("--agent1-config", type=str, default="models/taxi.yaml")
     p.add_argument("--visualize", action="store_true", help="Save training curves and a replay GIF")
     p.add_argument("--replay-episode", type=int, default=-1,
                    help="Which episode to record for replay (-1 = last)")
@@ -115,7 +117,13 @@ def main():
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    env = GridNegotiationEnv(seed=args.seed)
+    cfg_0 = AgentConfig.from_yaml(args.agent0_config)
+    cfg_1 = AgentConfig.from_yaml(args.agent1_config)
+    agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
+    for i, c in enumerate([cfg_0, cfg_1]):
+        print(f"Agent {i}: {c.name} ({c.energy_model}, {c.max_steps}steps, {c.operational_type})")
+
+    env = GridNegotiationEnv(agent_configs=agent_configs, seed=args.seed)
     model = HybridAgent().to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr, eps=1e-5)
 

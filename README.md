@@ -44,10 +44,37 @@ Discrete(5): stay, up, down, left, right.
 ## POI Scoring Formula
 
 ```
-score = 0.7 × reachability + 0.3 × centrality
+score = w_reach × reachability + w_central × centrality + w_privacy × privacy
 ```
 
-Where *reachability* accounts for distance and nearby obstacle density, and *centrality* favours grid-centre POIs. Agents have **no visibility of each other** — cooperation must emerge through negotiation only.
+Each factor is derived from the agent's YAML config (`models/*.yaml`):
+- **Reachability** — energy cost (linear or exponential) vs budget (`max_steps`), obstacle clearance, and operational range (`l_inf_from_spawn` or `full_grid`). POIs outside a drone's radius score 0.
+- **Centrality** — distance from grid centre.
+- **Privacy** — how secluded the POI is (weighted by `privacy_emphasis` from config).
+
+Agents have **no visibility of each other** — cooperation must emerge through negotiation only.
+
+## Agent Configs
+
+Define agent types as YAML files in `models/`:
+
+```yaml
+# models/drone.yaml
+name: Drone
+privacy_emphasis: 1.0
+max_steps: 60
+energy_model: linear
+energy_per_step: 1.0
+energy_exponential_gamma: 0.12
+operational_type: l_inf_from_spawn
+max_radius_cells: 6
+```
+
+Pass configs to training:
+
+```bash
+python train.py --agent0-config models/human.yaml --agent1-config models/taxi.yaml
+```
 
 ## Visualization
 

@@ -36,8 +36,9 @@ def run_negotiation(
     """
     poi_scores: Dict[str, np.ndarray] = {}
     for agent in env.agents:
-        pos = tuple(env.agent_positions[agent])
-        scores = compute_poi_scores(pos, env.poi_positions, env.obstacle_map)
+        spawn = tuple(env.spawn_positions[agent])
+        cfg = env.agent_configs.get(agent)
+        scores = compute_poi_scores(spawn, env.poi_positions, env.obstacle_map, cfg)
         poi_scores[agent] = scores
         env.set_comm(agent, scores)
 
@@ -92,8 +93,9 @@ def collect_negotiation_rollout(
     """Like run_negotiation but also returns per-step rollout data for PPO."""
     poi_scores: Dict[str, np.ndarray] = {}
     for agent in env.agents:
-        pos = tuple(env.agent_positions[agent])
-        scores = compute_poi_scores(pos, env.poi_positions, env.obstacle_map)
+        spawn = tuple(env.spawn_positions[agent])
+        cfg = env.agent_configs.get(agent)
+        scores = compute_poi_scores(spawn, env.poi_positions, env.obstacle_map, cfg)
         poi_scores[agent] = scores
         env.set_comm(agent, scores)
 
