@@ -119,6 +119,13 @@ def render_grid(
             continue
         r, c = env.agent_positions[agent]
         color = COLORS[agent]
+
+        if hasattr(env, "spawn_positions") and agent in env.spawn_positions:
+            sr, sc = env.spawn_positions[agent]
+            if (sr, sc) != (r, c):
+                ax.scatter(sc + 0.5, sr + 0.5, marker="*", s=180,
+                           c=color, edgecolors="white", linewidths=1, zorder=4)
+
         ax.scatter(c + 0.5, r + 0.5, marker="o", s=260,
                    c=color, edgecolors="white", linewidths=2, zorder=5)
         ax.text(c + 0.5, r + 0.5, AGENT_LABELS.get(agent, agent[-1]),
