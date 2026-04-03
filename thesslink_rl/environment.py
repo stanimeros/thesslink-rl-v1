@@ -20,7 +20,6 @@ GRID_SIZE = 10
 NUM_OBSTACLES = 10
 NUM_POIS = 3
 NUM_AGENTS = 2
-MAX_EPISODE_STEPS = 100
 
 NUM_MOVE_ACTIONS = 5
 
@@ -116,7 +115,7 @@ class GridNegotiationEnv:
 
         rewards = {a: 0.0 for a in self.agents}
         terminated = {a: False for a in self.agents}
-        truncated = {a: self.timestep >= MAX_EPISODE_STEPS for a in self.agents}
+        truncated = {a: False for a in self.agents}
         infos: Dict[str, dict] = {a: {"phase": self.phase} for a in self.agents}
 
         if self.phase == "negotiation":
