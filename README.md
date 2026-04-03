@@ -63,15 +63,21 @@ python src/main.py --config=qmix --env-config=gymma \
   with env_args.time_limit=60 env_args.key="thesslink_rl:thesslink/GridNegotiation-v0"
 ```
 
-## How It Works
+## Environment
+
+### Grid
+
+- **10x10** grid with **10** random obstacles and **3** Points of Interest (POIs)
+- **2** agents spawn at random free cells each episode
+- Each agent has a YAML config defining its energy model and privacy preference
 
 ### Episode Flow
 
 Each episode has two RL-controlled phases sharing a **60-step budget**:
 
-1. **Negotiation** (learned): Agents observe their own POI preference scores and the peer's last suggestion. Each step, they choose a suggest action (suggest POI 0, 1, or 2). When both agents suggest the **same POI on the same step**, they agree and the episode transitions to navigation.
+1. **Negotiation** (learned): Agents observe their own POI preference scores, the peer's last suggestion, the grid layout, and their position. Each step, they choose a suggest action (suggest POI 0, 1, or 2). When both agents suggest the **same POI on the same step**, they agree and the episode transitions to navigation.
 
-2. **Navigation** (learned): Agents observe the full grid (obstacles, POIs, own position) and take movement actions (stay, up, down, left, right) to reach the agreed POI.
+2. **Navigation** (learned): Agents continue to see the full grid and negotiation state. They take movement actions (stay, up, down, left, right) to reach the agreed POI.
 
 Both phases count against the same 60-step limit, so agents are incentivized to negotiate quickly to leave enough time for navigation.
 
@@ -94,17 +100,17 @@ EPyMARL uses `get_avail_actions()` to mask invalid actions per phase.
 
 ### Observation Space
 
-Flat vector of size **303** (zero-padded when needed):
+**Unified** flat vector of size **311**, identical layout in both phases:
 
-**During negotiation** (7 floats, padded to 303):
-- Own POI scores `(3,)` -- computed from the agent's energy/privacy config
-- Peer's last action one-hot `(4,)` -- [suggest_0, suggest_1, suggest_2, no_action_yet]
+| Segment | Size | Content |
+|---------|------|---------|
+| Phase flag | 1 | 0.0 = negotiation, 1.0 = navigation |
+| POI scores | 3 | Agent's preference score for each POI (energy + privacy) |
+| Peer action | 4 | One-hot of peer's last suggestion, or "no action yet" |
+| Agreed POI | 3 | One-hot of agreed POI (all zeros until agreement) |
+| Grid | 300 | 3-channel 10x10 grid: obstacles, POI locations, self position |
 
-**During navigation** (303 floats):
-- Grid `(3 x 10 x 10 = 300)` float32 -- channels: obstacles, POIs, self position
-- Comm `(3,)` float32 -- the peer agent's latest broadcast
-
-RNN-based algorithms (QMIX, MAPPO, etc.) handle the temporal history of suggest actions during negotiation.
+The agent always sees the full picture -- its position on the map, the negotiation state, and which phase it's in -- regardless of the current phase.
 
 ### Agreement Protocol
 
@@ -116,9 +122,15 @@ RNN-based algorithms (QMIX, MAPPO, etc.) handle the temporal history of suggest 
 
 ### Rewards
 
-- **During negotiation**: 0 reward per step
-- **On reaching agreed POI**: Golden Mean reward (`Score_A x Score_B`) for both agents
-- **Truncated** (no agreement or POI not reached): 0 reward
+| Event | Reward | Purpose |
+|-------|--------|---------|
+| Agreement on POI | `score_a * score_b` | Learn to pick mutually beneficial POIs |
+| Each nav step closer to POI | `+0.01 * distance_reduced` | Learn to navigate efficiently |
+| Each nav step away from POI | `-0.01 * distance_increased` | Penalize wasted moves |
+| Reaching the agreed POI | `score_a * score_b` | Terminal bonus for completing the task |
+| Episode timeout | 0 | No additional penalty |
+
+Distance is measured using BFS (shortest path respecting obstacles).
 
 ### POI Scoring Formula
 
@@ -126,8 +138,8 @@ RNN-based algorithms (QMIX, MAPPO, etc.) handle the temporal history of suggest 
 score = (1 - p) * energy + p * privacy       where p = privacy_emphasis
 ```
 
-- **Energy** -- how cheap is it to reach the POI? (linear or exponential model)
-- **Privacy** -- does visiting the POI reveal the agent's spawn location?
+- **Energy** -- how cheap is it to reach the POI from the current position? (BFS distance, linear or exponential cost model). Normalized to [0, 1].
+- **Privacy** -- does visiting the POI conceal the agent's spawn location? A POI far from spawn = high privacy. Normalized to [0, 1].
 
 ## Agent Configs
 
