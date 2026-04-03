@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
 
-from .environment import GRID_SIZE, NUM_POIS, GridNegotiationEnv
+from .environment import GRID_SIZE, GridNegotiationEnv
 from .evaluation import (
     AgentConfig,
     compute_eval_heatmap,
