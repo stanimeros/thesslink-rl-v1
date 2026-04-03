@@ -98,16 +98,26 @@ git pull origin main || warn "git pull failed, continuing with local code"
 log "Killing previous training processes..."
 kill_training
 
-log "Cleaning previous results..."
-rm -rf "$RESULTS_DIR"/*
-mkdir -p "$LOGS_DIR"
-
 if [ -f "$VENV" ]; then
     log "Activating virtualenv..."
     source "$VENV"
 else
     warn "No virtualenv at $VENV, using system Python"
 fi
+
+# ── Smoke test ───────────────────────────────────────────────────────────
+
+log "Running smoke test..."
+if python smoke_test.py; then
+    log "Smoke test passed!"
+else
+    err "Smoke test FAILED — aborting training."
+    exit 1
+fi
+
+log "Cleaning previous results..."
+rm -rf "$RESULTS_DIR"/*
+mkdir -p "$LOGS_DIR"
 
 # ── Launch training ──────────────────────────────────────────────────────
 
