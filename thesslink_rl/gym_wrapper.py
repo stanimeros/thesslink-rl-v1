@@ -22,15 +22,16 @@ from gymnasium import spaces
 
 from .environment import (
     ACTION_DIM,
-    ACT_SUGGEST_BASE,
-    NEG_OBS_RAW_SIZE,
     NUM_AGENTS,
-    NUM_POIS,
-    NUM_SUGGEST_ACTIONS,
     OBS_FLAT_SIZE,
     GridNegotiationEnv,
 )
-from .evaluation import AgentConfig, compute_poi_scores, golden_mean_reward
+from .evaluation import (
+    AgentConfig,
+    bfs_distances,
+    compute_poi_scores,
+    golden_mean_reward,
+)
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 
@@ -80,23 +81,17 @@ class GridNegotiationGymEnv(gym.Env):
 
         self._poi_scores: Dict[str, np.ndarray] = {}
         self._agreed_poi: int | None = None
-
-    def _flatten_negotiation_obs(self, obs_dict: Dict[str, np.ndarray]) -> np.ndarray:
-        """Flatten negotiation obs (scores + peer action) and zero-pad to OBS_FLAT_SIZE."""
-        raw = np.concatenate([obs_dict["scores"], obs_dict["peer_action"]])
-        padded = np.zeros(OBS_FLAT_SIZE, dtype=np.float32)
-        padded[:NEG_OBS_RAW_SIZE] = raw
-        return padded
-
-    def _flatten_navigation_obs(self, obs_dict: Dict[str, np.ndarray]) -> np.ndarray:
-        """Flatten the grid (C,H,W) + comm vector into a single 1D array."""
-        grid_flat = obs_dict["grid"].flatten()
-        return np.concatenate([grid_flat, obs_dict["comm"]])
+        self._prev_dist: Dict[str, float] = {}
 
     def _flatten_obs(self, obs_dict: Dict[str, np.ndarray]) -> np.ndarray:
-        if "grid" in obs_dict:
-            return self._flatten_navigation_obs(obs_dict)
-        return self._flatten_negotiation_obs(obs_dict)
+        """Concatenate the unified obs dict into a flat vector of size OBS_FLAT_SIZE."""
+        return np.concatenate([
+            obs_dict["phase"],
+            obs_dict["scores"],
+            obs_dict["peer_action"],
+            obs_dict["agreed_poi"],
+            obs_dict["grid"].flatten(),
+        ])
 
     def reset(
         self, seed: int | None = None, options: dict | None = None
@@ -116,6 +111,7 @@ class GridNegotiationGymEnv(gym.Env):
             self._env.poi_scores[agent] = scores
 
         self._agreed_poi = None
+        self._prev_dist = {}
 
         obs_tuple = tuple(
             self._flatten_obs(self._env._get_obs(a)) for a in agents
@@ -126,6 +122,14 @@ class GridNegotiationGymEnv(gym.Env):
         }
         return obs_tuple, info
 
+    def _bfs_dist_to_target(self, agent: str) -> float:
+        """BFS distance from agent's current position to the agreed POI."""
+        target = self._env.poi_positions[self._agreed_poi]
+        pos = tuple(self._env.agent_positions[agent])
+        dist_map = bfs_distances(pos, self._env.obstacle_map)
+        d = dist_map[target[0], target[1]]
+        return float(d) if np.isfinite(d) else float(self._env.obstacle_map.size)
+
     def step(
         self, actions: list[int] | tuple[int, ...] | np.ndarray
     ) -> tuple[tuple[np.ndarray, ...], list[float], bool, bool, dict]:
@@ -134,21 +138,42 @@ class GridNegotiationGymEnv(gym.Env):
 
         obs_d, rewards_d, terminated_d, truncated_d, infos_d = self._env.step(actions_dict)
 
-        if self._agreed_poi is None and self._env.agreed_poi is not None:
-            self._agreed_poi = self._env.agreed_poi
-
         obs_tuple = tuple(self._flatten_obs(obs_d[a]) for a in agents)
         rewards = [rewards_d[a] for a in agents]
 
-        if self._agreed_poi is not None:
-            target = self._env.poi_positions[self._agreed_poi]
+        just_agreed = (
+            self._agreed_poi is None and self._env.agreed_poi is not None
+        )
+        if just_agreed:
+            self._agreed_poi = self._env.agreed_poi
+            # Negotiation reward: golden mean for the chosen POI
+            sa = self._poi_scores[agents[0]][self._agreed_poi]
+            sb = self._poi_scores[agents[1]][self._agreed_poi]
+            gm = golden_mean_reward(float(sa), float(sb))
+            rewards = [gm] * self.n_agents
+            # Initialise distance tracking for nav shaping
             for a in agents:
-                if tuple(self._env.agent_positions.get(a, [-1, -1])) == target:
-                    sa = self._poi_scores[agents[0]][self._agreed_poi]
-                    sb = self._poi_scores[agents[1]][self._agreed_poi]
-                    gm = golden_mean_reward(float(sa), float(sb))
-                    rewards = [gm for _ in agents]
-                    break
+                self._prev_dist[a] = self._bfs_dist_to_target(a)
+
+        if self._agreed_poi is not None and not just_agreed:
+            # Navigation shaping: reward getting closer, penalise moving away
+            target = self._env.poi_positions[self._agreed_poi]
+            reached = False
+            for i, a in enumerate(agents):
+                pos = tuple(self._env.agent_positions.get(a, [-1, -1]))
+                if pos == target:
+                    reached = True
+                new_dist = self._bfs_dist_to_target(a)
+                old_dist = self._prev_dist.get(a, new_dist)
+                rewards[i] += (old_dist - new_dist) * 0.01
+                self._prev_dist[a] = new_dist
+
+            # Terminal reward when any agent reaches the POI
+            if reached:
+                sa = self._poi_scores[agents[0]][self._agreed_poi]
+                sb = self._poi_scores[agents[1]][self._agreed_poi]
+                gm = golden_mean_reward(float(sa), float(sb))
+                rewards = [gm] * self.n_agents
 
         done = all(terminated_d[a] for a in agents)
         truncated = all(truncated_d[a] for a in agents)

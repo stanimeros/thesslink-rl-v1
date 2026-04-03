@@ -1,4 +1,4 @@
-"""Core grid environment: 10x10 grid with obstacles, POIs, and comms.
+"""Core grid environment: 10x10 grid with obstacles, POIs, and two-phase episodes.
 
 Two phases per episode, both controlled by RL:
   1. Negotiation -- agents suggest POIs and agree on a target.
@@ -15,7 +15,6 @@ GRID_SIZE = 10
 NUM_OBSTACLES = 10
 NUM_POIS = 3
 NUM_AGENTS = 2
-COMM_DIM = NUM_POIS
 MAX_EPISODE_STEPS = 60
 
 NUM_MOVE_ACTIONS = 5
@@ -32,13 +31,16 @@ CH_POI = 1
 CH_SELF = 2
 NUM_CHANNELS = 3
 
-# Negotiation obs: own POI scores (NUM_POIS) + peer last action one-hot (NUM_SUGGEST_ACTIONS + 1)
-# The +1 is for "no action yet" at episode start
+# Negotiation obs components
 PEER_ACTION_DIM = NUM_SUGGEST_ACTIONS + 1  # 4: [suggest_0, suggest_1, suggest_2, no_action]
-NEG_OBS_RAW_SIZE = NUM_POIS + PEER_ACTION_DIM  # 7
 
-# Flat observation size: grid (C*H*W) + comm, negotiation obs is zero-padded to this
-OBS_FLAT_SIZE = NUM_CHANNELS * GRID_SIZE * GRID_SIZE + COMM_DIM  # 303
+# Unified observation layout (always the same in both phases):
+#   [phase_flag(1), poi_scores(3), peer_action(4), agreed_poi_onehot(3), grid(3*10*10)]
+PHASE_DIM = 1
+NEG_INFO_DIM = NUM_POIS + PEER_ACTION_DIM  # 7
+AGREED_POI_DIM = NUM_POIS                  # 3
+GRID_FLAT_DIM = NUM_CHANNELS * GRID_SIZE * GRID_SIZE  # 300
+OBS_FLAT_SIZE = PHASE_DIM + NEG_INFO_DIM + AGREED_POI_DIM + GRID_FLAT_DIM  # 311
 
 
 class GridNegotiationEnv:
@@ -84,9 +86,6 @@ class GridNegotiationEnv:
             self.agent_positions[agent] = self._random_free_cell()
         self.spawn_positions = {a: list(p) for a, p in self.agent_positions.items()}
 
-        self.comm_buffer: Dict[str, np.ndarray] = {
-            a: np.zeros(COMM_DIM, dtype=np.float32) for a in self.agents
-        }
         self.phase = "negotiation"
         self.agreed_poi = None
         self.last_suggestion = {}
@@ -189,34 +188,41 @@ class GridNegotiationEnv:
             self.agent_positions[agent] = [nr, nc]
 
     def _get_obs(self, agent: str) -> Dict[str, np.ndarray]:
-        if self.phase == "negotiation":
-            return self._get_negotiation_obs(agent)
-        return self._get_navigation_obs(agent)
-
-    def _get_negotiation_obs(self, agent: str) -> Dict[str, np.ndarray]:
-        own_scores = self.poi_scores.get(
-            agent, np.zeros(NUM_POIS, dtype=np.float32)
+        """Unified observation: phase flag + negotiation info + agreed POI + grid."""
+        # Phase flag
+        phase_flag = np.array(
+            [1.0 if self.phase == "navigation" else 0.0], dtype=np.float32,
         )
 
+        # Negotiation info (always present so the network layout is stable)
+        own_scores = self.poi_scores.get(
+            agent, np.zeros(NUM_POIS, dtype=np.float32),
+        )
         peer = [a for a in self.possible_agents if a != agent][0]
         peer_action_onehot = np.zeros(PEER_ACTION_DIM, dtype=np.float32)
         if peer in self.last_suggestion:
             peer_action_onehot[self.last_suggestion[peer]] = 1.0
         else:
-            peer_action_onehot[-1] = 1.0  # "no action yet"
+            peer_action_onehot[-1] = 1.0
 
-        return {"scores": own_scores.copy(), "peer_action": peer_action_onehot}
+        # Agreed POI one-hot (zeros until agreement)
+        agreed_onehot = np.zeros(NUM_POIS, dtype=np.float32)
+        if self.agreed_poi is not None:
+            agreed_onehot[self.agreed_poi] = 1.0
 
-    def _get_navigation_obs(self, agent: str) -> Dict[str, np.ndarray]:
+        # Grid channels: obstacles, POIs, self position
         grid = np.zeros((NUM_CHANNELS, GRID_SIZE, GRID_SIZE), dtype=np.float32)
         grid[CH_OBSTACLE] = self.obstacle_map.astype(np.float32)
         for pr, pc in self.poi_positions:
             grid[CH_POI, pr, pc] = 1.0
-
         r, c = self.agent_positions[agent]
         grid[CH_SELF, r, c] = 1.0
 
-        other = [a for a in self.possible_agents if a != agent][0]
-        peer_comm = self.comm_buffer[other].copy()
-        return {"grid": grid, "comm": peer_comm}
+        return {
+            "phase": phase_flag,
+            "scores": own_scores.copy(),
+            "peer_action": peer_action_onehot,
+            "agreed_poi": agreed_onehot,
+            "grid": grid,
+        }
 
