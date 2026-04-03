@@ -134,10 +134,13 @@ class GridNegotiationGymEnv(gym.Env):
         done = all(terminated_d[a] for a in agents)
         truncated = all(truncated_d[a] for a in agents)
 
-        info = {}
-        for a in agents:
-            for key, value in infos_d.get(a, {}).items():
-                info[f"{a}_{key}"] = value
+        reached = any(
+            "reached_poi" in infos_d.get(a, {}) for a in agents
+        )
+        info = {
+            "battle_won": reached,
+            "reached_poi": int(reached),
+        }
 
         return obs_tuple, rewards, done, truncated, info
 
