@@ -44,40 +44,30 @@ def _centrality_score(poi: tuple[int, int]) -> float:
     return float(1.0 - dist / max_dist)
 
 
-def _peer_distance_score(
-    peer_pos: tuple[int, int],
-    poi: tuple[int, int],
-) -> float:
-    """Lower peer distance -> higher cooperation potential -> higher score."""
-    dist = manhattan(peer_pos, poi)
-    max_dist = 2 * (GRID_SIZE - 1)
-    return float(1.0 - dist / max_dist)
-
+# NOTE: No peer-distance factor — agents cannot observe each other.
+# Cooperation must emerge through the negotiation comm channel only.
 
 def compute_poi_scores(
     agent_pos: tuple[int, int],
-    peer_pos: tuple[int, int],
     poi_positions: list[tuple[int, int]],
     obstacle_map: np.ndarray,
-    w_reach: float = 0.5,
-    w_central: float = 0.2,
-    w_peer: float = 0.3,
+    w_reach: float = 0.7,
+    w_central: float = 0.3,
 ) -> np.ndarray:
     """Return an array of shape (NUM_POIS,) with scores in [0, 1].
 
-    Formula per POI:
-        score = w_reach * reachability + w_central * centrality + w_peer * peer_prox
+    Each agent scores POIs based only on its own view — no knowledge of
+    the peer's position. Cooperation emerges through negotiation only.
 
-    The weights default to emphasising reachability (path cost) while still
-    rewarding central POIs and cooperative proximity to the peer agent.
+    Formula per POI:
+        score = w_reach * reachability + w_central * centrality
     """
     assert len(poi_positions) == NUM_POIS
     scores = np.zeros(NUM_POIS, dtype=np.float32)
     for i, poi in enumerate(poi_positions):
         reach = _reachability_score(agent_pos, poi, obstacle_map)
         central = _centrality_score(poi)
-        peer = _peer_distance_score(peer_pos, poi)
-        scores[i] = w_reach * reach + w_central * central + w_peer * peer
+        scores[i] = w_reach * reach + w_central * central
     return np.clip(scores, 0.0, 1.0)
 
 

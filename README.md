@@ -34,8 +34,8 @@ python train.py --total-episodes 200 --seed 42 --visualize
 ## Observation Space
 
 Each agent observes:
-- **grid** `(4, 10, 10)` float32 — channels: obstacles, POIs, self position, other agent position
-- **comm** `(3,)` float32 — the peer agent's latest POI score broadcast
+- **grid** `(3, 10, 10)` float32 — channels: obstacles, POIs, self position (no visibility of the other agent)
+- **comm** `(3,)` float32 — the peer agent's latest POI score broadcast (the only inter-agent channel)
 
 ## Action Space
 
@@ -44,10 +44,10 @@ Discrete(5): stay, up, down, left, right.
 ## POI Scoring Formula
 
 ```
-score = 0.5 × reachability + 0.2 × centrality + 0.3 × peer_proximity
+score = 0.7 × reachability + 0.3 × centrality
 ```
 
-Where *reachability* accounts for distance and nearby obstacle density, *centrality* favours grid-centre POIs, and *peer_proximity* rewards targets close to both agents.
+Where *reachability* accounts for distance and nearby obstacle density, and *centrality* favours grid-centre POIs. Agents have **no visibility of each other** — cooperation must emerge through negotiation only.
 
 ## Visualization
 

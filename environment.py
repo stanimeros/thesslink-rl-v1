@@ -17,12 +17,11 @@ NUM_AGENTS = 2
 COMM_DIM = NUM_POIS  # each agent broadcasts its POI scores
 MAX_EPISODE_STEPS = 60
 
-# Grid channel indices (C, H, W) with C=4
+# Grid channel indices (C, H, W) with C=3
 CH_OBSTACLE = 0
 CH_POI = 1
 CH_SELF = 2
-CH_OTHER = 3
-NUM_CHANNELS = 4
+NUM_CHANNELS = 3
 
 
 class GridNegotiationEnv(ParallelEnv):
@@ -141,9 +140,6 @@ class GridNegotiationEnv(ParallelEnv):
         grid[CH_SELF, r, c] = 1.0
 
         other = [a for a in self.possible_agents if a != agent][0]
-        or_, oc = self.agent_positions[other]
-        grid[CH_OTHER, or_, oc] = 1.0
-
         peer_comm = self.comm_buffer[other].copy()
         return {"grid": grid, "comm": peer_comm}
 

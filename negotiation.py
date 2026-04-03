@@ -37,9 +37,7 @@ def run_negotiation(
     poi_scores: Dict[str, np.ndarray] = {}
     for agent in env.agents:
         pos = tuple(env.agent_positions[agent])
-        other = [a for a in env.agents if a != agent][0]
-        peer_pos = tuple(env.agent_positions[other])
-        scores = compute_poi_scores(pos, peer_pos, env.poi_positions, env.obstacle_map)
+        scores = compute_poi_scores(pos, env.poi_positions, env.obstacle_map)
         poi_scores[agent] = scores
         env.set_comm(agent, scores)
 
@@ -95,9 +93,7 @@ def collect_negotiation_rollout(
     poi_scores: Dict[str, np.ndarray] = {}
     for agent in env.agents:
         pos = tuple(env.agent_positions[agent])
-        other = [a for a in env.agents if a != agent][0]
-        peer_pos = tuple(env.agent_positions[other])
-        scores = compute_poi_scores(pos, peer_pos, env.poi_positions, env.obstacle_map)
+        scores = compute_poi_scores(pos, env.poi_positions, env.obstacle_map)
         poi_scores[agent] = scores
         env.set_comm(agent, scores)
 
