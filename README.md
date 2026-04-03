@@ -1,14 +1,14 @@
 # ThessLink RL v2 -- Multi-Agent Grid Negotiation for EPyMARL
 
-Multi-Agent Reinforcement Learning environment where two agents **negotiate** over Points of Interest (POIs) on a 10x10 grid, then **navigate** to the agreed target. Designed to plug into [EPyMARL](https://github.com/uoe-agents/epymarl) for training with algorithms like QMIX, MAPPO, VDN, IQL, and more.
+Multi-Agent Reinforcement Learning environment where two agents **negotiate** over Points of Interest (POIs) on a 10x10 grid, then **navigate** to the agreed target. Both phases are **RL-trained** -- agents learn to negotiate through suggest/accept actions and to navigate with movement actions. Designed to plug into [EPyMARL](https://github.com/uoe-agents/epymarl) for training with algorithms like QMIX, MAPPO, VDN, IQL, and more.
 
 ## Architecture
 
 | File | Purpose |
 |---|---|
-| `thesslink_rl/environment.py` | Core env -- 10x10 grid, obstacles, POIs, comms |
-| `thesslink_rl/evaluation.py` | POI preference scoring (energy, privacy) |
-| `thesslink_rl/negotiation.py` | Heuristic negotiation -- agents exchange scores, pick best POI |
+| `thesslink_rl/environment.py` | Core env -- 10x10 grid, obstacles, POIs, negotiation + navigation phases |
+| `thesslink_rl/evaluation.py` | POI preference scoring (energy, privacy) and Golden Mean reward |
+| `thesslink_rl/negotiation.py` | (Deprecated) Negotiation is now RL-trained within the environment |
 | `thesslink_rl/gym_wrapper.py` | Gymnasium multi-agent wrapper for EPyMARL compatibility |
 | `thesslink_rl/visualization.py` | Grid rendering, training curves, episode replay GIF |
 | `thesslink_rl/models/` | Agent type configs (YAML): human, taxi, drone |
@@ -66,26 +66,60 @@ python src/main.py --config=qmix --env-config=gymma \
 
 ## How It Works
 
-### Environment Phases
+### Episode Flow
 
-1. **Negotiation** (automatic at reset): Each agent scores all POIs based on its energy/privacy config, exchanges scores over several rounds, then the POI maximising the product of both agents' scores is chosen.
+Each episode has two RL-controlled phases sharing a **60-step budget**:
 
-2. **Navigation** (learned by EPyMARL): Agents receive observations and take discrete movement actions (stay, up, down, left, right) to reach the agreed POI. This is the phase controlled by the RL algorithm.
+1. **Negotiation** (learned): Agents observe their own POI preference scores and the peer's last suggestion. Each step, they choose a suggest action (suggest POI 0, 1, or 2). When both agents suggest the **same POI on the same step**, they agree and the episode transitions to navigation.
 
-### Observation Space
+2. **Navigation** (learned): Agents observe the full grid (obstacles, POIs, own position) and take movement actions (stay, up, down, left, right) to reach the agreed POI.
 
-Each agent observes a flat vector of size **303**:
-- Grid `(3 x 10 x 10 = 300)` float32 -- channels: obstacles, POIs, self position
-- Comm `(3,)` float32 -- the peer agent's latest POI score broadcast
+Both phases count against the same 60-step limit, so agents are incentivized to negotiate quickly to leave enough time for navigation.
 
 ### Action Space
 
-`Discrete(5)` per agent: stay, up, down, left, right.
+`Discrete(8)` per agent with **phase-dependent action masking**:
+
+| Action | Meaning | Valid During |
+|--------|---------|-------------|
+| 0 | Stay | Navigation |
+| 1 | Up | Navigation |
+| 2 | Down | Navigation |
+| 3 | Left | Navigation |
+| 4 | Right | Navigation |
+| 5 | Suggest POI 0 | Negotiation |
+| 6 | Suggest POI 1 | Negotiation |
+| 7 | Suggest POI 2 | Negotiation |
+
+EPyMARL uses `get_avail_actions()` to mask invalid actions per phase.
+
+### Observation Space
+
+Flat vector of size **303** (zero-padded when needed):
+
+**During negotiation** (7 floats, padded to 303):
+- Own POI scores `(3,)` -- computed from the agent's energy/privacy config
+- Peer's last action one-hot `(4,)` -- [suggest_0, suggest_1, suggest_2, no_action_yet]
+
+**During navigation** (303 floats):
+- Grid `(3 x 10 x 10 = 300)` float32 -- channels: obstacles, POIs, self position
+- Comm `(3,)` float32 -- the peer agent's latest broadcast
+
+RNN-based algorithms (QMIX, MAPPO, etc.) handle the temporal history of suggest actions during negotiation.
+
+### Agreement Protocol
+
+1. Episode starts in `negotiation` phase
+2. Each step, both agents simultaneously choose a suggest action (5, 6, or 7)
+3. When both agents suggest the **same POI on the same step**, they agree
+4. The env switches to `navigation` phase with the agreed POI as target
+5. If agents spend all 60 steps negotiating, the episode truncates with zero reward
 
 ### Rewards
 
-- **Common reward mode** (default): both agents receive the Golden Mean reward (`Score_A x Score_B`) when any agent reaches the target POI.
-- **Individual reward mode** (`common_reward=False`): each agent receives its own Golden Mean reward.
+- **During negotiation**: 0 reward per step
+- **On reaching agreed POI**: Golden Mean reward (`Score_A x Score_B`) for both agents
+- **Truncated** (no agreement or POI not reached): 0 reward
 
 ### POI Scoring Formula
 
@@ -128,7 +162,7 @@ energy_exponential_gamma: 0.12
 The `thesslink_rl.visualization` module can still be used for rendering and debugging:
 
 ```python
-from thesslink_rl.visualization import render_grid
+from thesslink_rl.visualization import render_grid, capture_frame
 from thesslink_rl.environment import GridNegotiationEnv
 
 env = GridNegotiationEnv(seed=42)

@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
 
-from .environment import GRID_SIZE, GridNegotiationEnv
+from .environment import GRID_SIZE, NUM_POIS, ACT_SUGGEST_BASE, GridNegotiationEnv
 
 COLORS = {
     "empty": "#f0f0f0",
@@ -83,8 +83,16 @@ def render_grid(
     ax.grid(True, color="#cccccc", linewidth=0.5)
     ax.set_xlim(0, GRID_SIZE)
     ax.set_ylim(GRID_SIZE, 0)
+
     phase_tag = f"  [{env.phase}]" if hasattr(env, "phase") else ""
-    ax.set_title(title + phase_tag, fontsize=11)
+    neg_info = ""
+    if env.phase == "negotiation" and env.last_suggestion:
+        parts = []
+        for a, poi in env.last_suggestion.items():
+            parts.append(f"{a[-1]}->P{poi}")
+        neg_info = f"  ({', '.join(parts)})"
+
+    ax.set_title(title + phase_tag + neg_info, fontsize=11)
 
     if save_path:
         _ensure_out_dir()
@@ -149,7 +157,8 @@ def replay_episode(
     """Animate an episode from a list of frame snapshots.
 
     Each frame dict: {"agent_positions": {name: [r,c]}, "phase": str,
-                      "timestep": int, "agreed_poi": int|None}
+                      "timestep": int, "agreed_poi": int|None,
+                      "last_suggestion": {name: int}}
     """
     fig, ax = plt.subplots(1, 1, figsize=(6, 6))
 
@@ -159,6 +168,7 @@ def replay_episode(
         env.agent_positions = frame["agent_positions"]
         env.phase = frame["phase"]
         env.agreed_poi = frame.get("agreed_poi")
+        env.last_suggestion = frame.get("last_suggestion", {})
         render_grid(env, title=f"Step {frame['timestep']}", ax=ax, show=False)
 
     anim = FuncAnimation(fig, _draw, frames=len(frames),
@@ -177,4 +187,5 @@ def capture_frame(env: GridNegotiationEnv) -> dict:
         "phase": env.phase,
         "timestep": env.timestep,
         "agreed_poi": getattr(env, "agreed_poi", None),
+        "last_suggestion": dict(getattr(env, "last_suggestion", {})),
     }

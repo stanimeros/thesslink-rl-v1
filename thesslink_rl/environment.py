@@ -1,8 +1,13 @@
-"""Core grid environment: 10x10 grid with obstacles, POIs, and comms."""
+"""Core grid environment: 10x10 grid with obstacles, POIs, and comms.
+
+Two phases per episode, both controlled by RL:
+  1. Negotiation -- agents suggest POIs and agree on a target.
+  2. Navigation  -- agents move to reach the agreed POI.
+"""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 import numpy as np
 
@@ -10,12 +15,25 @@ if TYPE_CHECKING:
     from .evaluation import AgentConfig
 
 GRID_SIZE = 10
-NUM_OBSTACLES = 10  # 10% of 100 cells
+NUM_OBSTACLES = 10
 NUM_POIS = 3
 NUM_AGENTS = 2
-COMM_DIM = NUM_POIS  # each agent broadcasts its POI scores
+COMM_DIM = NUM_POIS
 MAX_EPISODE_STEPS = 60
-ACTION_DIM = 5  # 0=stay, 1=up, 2=down, 3=left, 4=right
+
+# Movement actions (navigation phase)
+ACT_STAY = 0
+ACT_UP = 1
+ACT_DOWN = 2
+ACT_LEFT = 3
+ACT_RIGHT = 4
+NUM_MOVE_ACTIONS = 5
+
+# Negotiation actions
+ACT_SUGGEST_BASE = 5  # 5 = suggest POI 0, 6 = suggest POI 1, 7 = suggest POI 2
+NUM_SUGGEST_ACTIONS = NUM_POIS
+
+ACTION_DIM = NUM_MOVE_ACTIONS + NUM_SUGGEST_ACTIONS  # 8
 
 # Grid channel indices (C, H, W) with C=3
 CH_OBSTACLE = 0
@@ -23,30 +41,48 @@ CH_POI = 1
 CH_SELF = 2
 NUM_CHANNELS = 3
 
-# Flat observation size: grid (C*H*W) + comm (COMM_DIM)
-OBS_FLAT_SIZE = NUM_CHANNELS * GRID_SIZE * GRID_SIZE + COMM_DIM
+# Navigation obs: grid (C*H*W) + comm (COMM_DIM) = 303
+NAV_OBS_SIZE = NUM_CHANNELS * GRID_SIZE * GRID_SIZE + COMM_DIM
+
+# Negotiation obs: own POI scores (NUM_POIS) + peer last action one-hot (NUM_SUGGEST_ACTIONS + 1)
+# The +1 is for "no action yet" at episode start
+PEER_ACTION_DIM = NUM_SUGGEST_ACTIONS + 1  # 4: [suggest_0, suggest_1, suggest_2, no_action]
+NEG_OBS_RAW_SIZE = NUM_POIS + PEER_ACTION_DIM  # 7
+
+# Flat observation size is the max of both phases
+OBS_FLAT_SIZE = NAV_OBS_SIZE  # 303 (negotiation obs is zero-padded to this)
 
 
 class GridNegotiationEnv:
-    """Two agents negotiate over POIs then navigate to the agreed one."""
+    """Two agents negotiate over POIs then navigate to the agreed one.
+
+    Both phases are RL-controlled. During negotiation, agents choose
+    suggest actions (5-7) to propose a POI. When both suggest the same
+    POI on the same step, they agree and switch to navigation.
+    """
 
     metadata = {"name": "grid_negotiation_v0", "render_modes": ["human"]}
 
     def __init__(
         self,
-        agent_configs: Dict[str, AgentConfig] | None = None,
+        agent_configs: Dict[str, "AgentConfig"] | None = None,
         render_mode: Optional[str] = None,
         seed: int = 0,
     ):
         self.render_mode = render_mode
         self._seed = seed
         self.possible_agents = [f"agent_{i}" for i in range(NUM_AGENTS)]
-        self.agents = list(self.possible_agents)
+        self.agents: List[str] = list(self.possible_agents)
         self.timestep = 0
         self.agent_configs = agent_configs or {}
 
         self._rng = np.random.RandomState(seed)
         self._build_static_map()
+
+        self.poi_scores: Dict[str, np.ndarray] = {}
+        self.last_suggestion: Dict[str, int] = {}
+        self.phase = "negotiation"
+        self.agreed_poi: Optional[int] = None
 
     def reset(self, seed=None, options=None) -> tuple[Dict, Dict]:
         if seed is not None:
@@ -64,7 +100,9 @@ class GridNegotiationEnv:
             a: np.zeros(COMM_DIM, dtype=np.float32) for a in self.agents
         }
         self.phase = "negotiation"
-        self.agreed_poi: Optional[int] = None
+        self.agreed_poi = None
+        self.last_suggestion = {}
+        self.poi_scores = {}
 
         obs = {a: self._get_obs(a) for a in self.agents}
         info = {a: {} for a in self.agents}
@@ -72,22 +110,47 @@ class GridNegotiationEnv:
 
     def step(self, actions: Dict[str, int]):
         self.timestep += 1
-        for agent, act in actions.items():
-            self._apply_move(agent, act)
 
-        obs = {a: self._get_obs(a) for a in self.agents}
+        obs: Dict[str, Dict[str, np.ndarray]]
         rewards = {a: 0.0 for a in self.agents}
         terminated = {a: False for a in self.agents}
         truncated = {a: self.timestep >= MAX_EPISODE_STEPS for a in self.agents}
         infos: Dict[str, dict] = {a: {"phase": self.phase} for a in self.agents}
 
-        if self.phase == "navigation" and self.agreed_poi is not None:
-            target = self.poi_positions[self.agreed_poi]
-            for a in self.agents:
-                if tuple(self.agent_positions[a]) == target:
-                    terminated = {ag: True for ag in self.agents}
-                    infos = {ag: {"reached_poi": self.agreed_poi} for ag in self.agents}
-                    break
+        if self.phase == "negotiation":
+            suggestions: Dict[str, int] = {}
+            for agent, act in actions.items():
+                if ACT_SUGGEST_BASE <= act < ACT_SUGGEST_BASE + NUM_SUGGEST_ACTIONS:
+                    poi_idx = act - ACT_SUGGEST_BASE
+                    suggestions[agent] = poi_idx
+                    self.last_suggestion[agent] = poi_idx
+
+            if len(suggestions) == NUM_AGENTS:
+                values = list(suggestions.values())
+                if values[0] == values[1]:
+                    self.agreed_poi = values[0]
+                    self.phase = "navigation"
+                    for a in self.agents:
+                        infos[a]["agreed_poi"] = self.agreed_poi
+                        infos[a]["phase"] = "navigation"
+
+        elif self.phase == "navigation":
+            for agent, act in actions.items():
+                if 0 <= act < NUM_MOVE_ACTIONS:
+                    self._apply_move(agent, act)
+
+            if self.agreed_poi is not None:
+                target = self.poi_positions[self.agreed_poi]
+                for a in self.agents:
+                    if tuple(self.agent_positions[a]) == target:
+                        terminated = {ag: True for ag in self.agents}
+                        infos = {
+                            ag: {"reached_poi": self.agreed_poi, "phase": self.phase}
+                            for ag in self.agents
+                        }
+                        break
+
+        obs = {a: self._get_obs(a) for a in self.agents}
 
         if any(truncated.values()):
             self.agents = []
@@ -95,6 +158,17 @@ class GridNegotiationEnv:
             self.agents = []
 
         return obs, rewards, terminated, truncated, infos
+
+    def get_avail_actions(self, agent: str) -> List[int]:
+        """Return a binary mask of length ACTION_DIM for valid actions."""
+        mask = [0] * ACTION_DIM
+        if self.phase == "negotiation":
+            for i in range(NUM_SUGGEST_ACTIONS):
+                mask[ACT_SUGGEST_BASE + i] = 1
+        else:
+            for i in range(NUM_MOVE_ACTIONS):
+                mask[i] = 1
+        return mask
 
     # --- Helpers ----------------------------------------------------------
 
@@ -127,6 +201,25 @@ class GridNegotiationEnv:
             self.agent_positions[agent] = [nr, nc]
 
     def _get_obs(self, agent: str) -> Dict[str, np.ndarray]:
+        if self.phase == "negotiation":
+            return self._get_negotiation_obs(agent)
+        return self._get_navigation_obs(agent)
+
+    def _get_negotiation_obs(self, agent: str) -> Dict[str, np.ndarray]:
+        own_scores = self.poi_scores.get(
+            agent, np.zeros(NUM_POIS, dtype=np.float32)
+        )
+
+        peer = [a for a in self.possible_agents if a != agent][0]
+        peer_action_onehot = np.zeros(PEER_ACTION_DIM, dtype=np.float32)
+        if peer in self.last_suggestion:
+            peer_action_onehot[self.last_suggestion[peer]] = 1.0
+        else:
+            peer_action_onehot[-1] = 1.0  # "no action yet"
+
+        return {"scores": own_scores.copy(), "peer_action": peer_action_onehot}
+
+    def _get_navigation_obs(self, agent: str) -> Dict[str, np.ndarray]:
         grid = np.zeros((NUM_CHANNELS, GRID_SIZE, GRID_SIZE), dtype=np.float32)
         grid[CH_OBSTACLE] = self.obstacle_map.astype(np.float32)
         for pr, pc in self.poi_positions:

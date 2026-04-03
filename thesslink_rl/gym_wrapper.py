@@ -7,14 +7,14 @@ EPyMARL's GymmaWrapper expects:
   - reset() -> (tuple_of_obs, info)
   - step(list_of_actions) -> (tuple_of_obs, list_of_rewards, done, truncated, info)
 
-Negotiation runs automatically inside reset(); EPyMARL agents only control
-the navigation phase via discrete movement actions.
+Both negotiation and navigation are RL-controlled. Negotiation happens as
+normal episode steps with suggest actions; navigation follows once agents agree.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import gymnasium as gym
 import numpy as np
@@ -22,12 +22,15 @@ from gymnasium import spaces
 
 from .environment import (
     ACTION_DIM,
+    ACT_SUGGEST_BASE,
+    NEG_OBS_RAW_SIZE,
     NUM_AGENTS,
+    NUM_POIS,
+    NUM_SUGGEST_ACTIONS,
     OBS_FLAT_SIZE,
     GridNegotiationEnv,
 )
-from .evaluation import AgentConfig, golden_mean_reward
-from .negotiation import run_negotiation
+from .evaluation import AgentConfig, compute_poi_scores, golden_mean_reward
 
 _PACKAGE_DIR = Path(__file__).resolve().parent
 
@@ -78,10 +81,22 @@ class GridNegotiationGymEnv(gym.Env):
         self._poi_scores: Dict[str, np.ndarray] = {}
         self._agreed_poi: int | None = None
 
-    def _flatten_obs(self, obs_dict: Dict[str, np.ndarray]) -> np.ndarray:
+    def _flatten_negotiation_obs(self, obs_dict: Dict[str, np.ndarray]) -> np.ndarray:
+        """Flatten negotiation obs (scores + peer action) and zero-pad to OBS_FLAT_SIZE."""
+        raw = np.concatenate([obs_dict["scores"], obs_dict["peer_action"]])
+        padded = np.zeros(OBS_FLAT_SIZE, dtype=np.float32)
+        padded[:NEG_OBS_RAW_SIZE] = raw
+        return padded
+
+    def _flatten_navigation_obs(self, obs_dict: Dict[str, np.ndarray]) -> np.ndarray:
         """Flatten the grid (C,H,W) + comm vector into a single 1D array."""
         grid_flat = obs_dict["grid"].flatten()
         return np.concatenate([grid_flat, obs_dict["comm"]])
+
+    def _flatten_obs(self, obs_dict: Dict[str, np.ndarray]) -> np.ndarray:
+        if "grid" in obs_dict:
+            return self._flatten_navigation_obs(obs_dict)
+        return self._flatten_negotiation_obs(obs_dict)
 
     def reset(
         self, seed: int | None = None, options: dict | None = None
@@ -89,20 +104,23 @@ class GridNegotiationGymEnv(gym.Env):
         super().reset(seed=seed)
         self._env.reset(seed=seed, options=options)
 
-        self._agreed_poi, self._poi_scores = run_negotiation(self._env)
+        agents = self._env.possible_agents
+        for agent in agents:
+            spawn = tuple(self._env.spawn_positions[agent])
+            cfg = self._agent_configs.get(agent)
+            scores = compute_poi_scores(
+                spawn, self._env.poi_positions, self._env.obstacle_map, cfg
+            )
+            self._poi_scores[agent] = scores
+            self._env.poi_scores[agent] = scores
+
+        self._agreed_poi = None
 
         obs_tuple = tuple(
-            self._flatten_obs(self._env._get_obs(a))
-            for a in self._env.possible_agents
+            self._flatten_obs(self._env._get_obs(a)) for a in agents
         )
 
-        sa = self._poi_scores[self._env.possible_agents[0]][self._agreed_poi]
-        sb = self._poi_scores[self._env.possible_agents[1]][self._agreed_poi]
-        gm = golden_mean_reward(float(sa), float(sb))
-
         info = {
-            "agreed_poi": self._agreed_poi,
-            "golden_mean": gm,
             "poi_scores": {k: v.tolist() for k, v in self._poi_scores.items()},
         }
         return obs_tuple, info
@@ -115,10 +133,10 @@ class GridNegotiationGymEnv(gym.Env):
 
         obs_d, rewards_d, terminated_d, truncated_d, infos_d = self._env.step(actions_dict)
 
-        obs_tuple = tuple(
-            self._flatten_obs(obs_d[a]) for a in agents
-        )
+        if self._agreed_poi is None and self._env.agreed_poi is not None:
+            self._agreed_poi = self._env.agreed_poi
 
+        obs_tuple = tuple(self._flatten_obs(obs_d[a]) for a in agents)
         rewards = [rewards_d[a] for a in agents]
 
         if self._agreed_poi is not None:
@@ -134,15 +152,22 @@ class GridNegotiationGymEnv(gym.Env):
         done = all(terminated_d[a] for a in agents)
         truncated = all(truncated_d[a] for a in agents)
 
-        reached = any(
-            "reached_poi" in infos_d.get(a, {}) for a in agents
-        )
-        info = {
+        reached = any("reached_poi" in infos_d.get(a, {}) for a in agents)
+        info: dict[str, Any] = {
             "battle_won": reached,
             "reached_poi": int(reached),
+            "phase": self._env.phase,
         }
+        if self._agreed_poi is not None:
+            info["agreed_poi"] = self._agreed_poi
 
         return obs_tuple, rewards, done, truncated, info
+
+    def get_avail_actions(self) -> List[List[int]]:
+        """Return per-agent action masks for EPyMARL."""
+        return [
+            self._env.get_avail_actions(a) for a in self._env.possible_agents
+        ]
 
     def render(self):
         pass
