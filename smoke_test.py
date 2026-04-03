@@ -21,10 +21,9 @@ EPYMARL_SRC = PROJECT / "epymarl" / "src"
 RESULTS_DIR = PROJECT / "epymarl" / "results"
 PLOTS_DIR = PROJECT / "plots"
 
-T_MAX = 5_000
-TEST_INTERVAL = 2_000
-SAVE_MODEL_INTERVAL = 2_000
-
+T_MAX = 4_000
+TEST_INTERVAL = 1_000
+SAVE_MODEL_INTERVAL = 1_000
 
 def run_training() -> Path:
     """Launch a quick QMIX training and return the Sacred run directory."""
