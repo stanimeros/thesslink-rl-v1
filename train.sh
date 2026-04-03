@@ -98,12 +98,14 @@ git pull origin main || warn "git pull failed, continuing with local code"
 log "Killing previous training processes..."
 kill_training
 
-if [ -f "$VENV" ]; then
-    log "Activating virtualenv..."
-    source "$VENV"
-else
-    warn "No virtualenv at $VENV, using system Python"
+if [ ! -f "$VENV" ]; then
+    log "Creating virtualenv..."
+    python3 -m venv .venv
 fi
+log "Activating virtualenv..."
+source "$VENV"
+log "Installing project in editable mode..."
+pip install -e . --quiet
 
 # ── Smoke test ───────────────────────────────────────────────────────────
 
