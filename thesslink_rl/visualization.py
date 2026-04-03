@@ -24,14 +24,28 @@ from .evaluation import (
 COLORS = {
     "empty": "#f0f0f0",
     "obstacle": "#2d2d2d",
-    "poi_0": "#2ecc71",   # green  (best)
-    "poi_1": "#3498db",   # blue   (mid)
-    "poi_2": "#e74c3c",   # red    (worst)
     "agent_0": "#f39c12",
     "agent_1": "#9b59b6",
 }
 
+POI_RANK_COLORS = ["#2ecc71", "#3498db", "#e74c3c"]  # green (best), blue (mid), red (worst)
+
 AGENT_LABELS = {"agent_0": "A", "agent_1": "B"}
+
+
+def _poi_colors(scores: np.ndarray | None) -> list[str]:
+    """Return a color per POI index, ranked by score: green=best, blue=mid, red=worst.
+
+    If *scores* is None or all equal, falls back to index order.
+    """
+    n = len(POI_RANK_COLORS)
+    if scores is None or len(scores) == 0:
+        return list(POI_RANK_COLORS[:n])
+    rank_order = np.argsort(-np.asarray(scores))  # highest score first
+    colors = [""] * len(rank_order)
+    for rank, poi_idx in enumerate(rank_order):
+        colors[poi_idx] = POI_RANK_COLORS[min(rank, n - 1)]
+    return colors
 
 OUT_DIR = Path("plots")
 
@@ -63,11 +77,19 @@ def render_grid(
     save_path: str | None = None,
     algo: str | None = None,
     env_name: str | None = None,
+    poi_scores: np.ndarray | None = None,
 ) -> plt.Axes:
-    """Draw the current grid state with obstacles, POIs, and agents."""
+    """Draw the current grid state with obstacles, POIs, and agents.
+
+    *poi_scores* determines POI colour ranking (green=best, red=worst).
+    For the centre panel of 3-panel layouts, pass the merged (averaged)
+    scores from both agents so the ranking reflects the common view.
+    """
     standalone = ax is None
     if standalone:
         fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+
+    colors = _poi_colors(poi_scores)
 
     grid_rgb = np.full((GRID_SIZE, GRID_SIZE, 3), mcolors.to_rgb(COLORS["empty"]))
 
@@ -76,9 +98,8 @@ def render_grid(
             if env.obstacle_map[r, c]:
                 grid_rgb[r, c] = mcolors.to_rgb(COLORS["obstacle"])
 
-    poi_keys = ["poi_0", "poi_1", "poi_2"]
     for i, (pr, pc) in enumerate(env.poi_positions):
-        grid_rgb[pr, pc] = mcolors.to_rgb(COLORS[poi_keys[i]])
+        grid_rgb[pr, pc] = mcolors.to_rgb(colors[i])
 
     ax.imshow(grid_rgb, origin="upper", extent=(0, GRID_SIZE, GRID_SIZE, 0))
 
@@ -86,9 +107,12 @@ def render_grid(
         marker = "^" if env.agreed_poi == i else "D"
         size = 200 if env.agreed_poi == i else 120
         ax.scatter(pc + 0.5, pr + 0.5, marker=marker, s=size,
-                   c=COLORS[poi_keys[i]], edgecolors="white", linewidths=1.5, zorder=3)
-        ax.text(pc + 0.5, pr + 0.15, f"P{i}", ha="center", va="center",
-                fontsize=7, fontweight="bold", color="white", zorder=4)
+                   c=colors[i], edgecolors="white", linewidths=1.5, zorder=3)
+        score_label = f"P{i}: {poi_scores[i]:.2f}" if poi_scores is not None else f"P{i}"
+        ax.text(pc + 0.5, pr + 0.15, score_label, ha="center", va="center",
+                fontsize=7, fontweight="bold", color="white",
+                bbox=dict(boxstyle="round,pad=0.15", fc="black", alpha=0.5) if poi_scores is not None else None,
+                zorder=4)
 
     for agent in env.possible_agents:
         if agent not in env.agent_positions:
@@ -147,7 +171,7 @@ def _draw_heatmap_panel(
     subtitle: str | None = None,
 ):
     """Draw a single heatmap panel with POI scores, obstacles, and agent marker."""
-    poi_keys = ["poi_0", "poi_1", "poi_2"]
+    colors = _poi_colors(poi_scores)
     heatmap_masked = np.ma.array(heatmap, mask=env.obstacle_map)
 
     ax.imshow(
@@ -168,7 +192,7 @@ def _draw_heatmap_panel(
         marker = "^" if env.agreed_poi == i else "D"
         size = 200 if env.agreed_poi == i else 120
         ax.scatter(pc + 0.5, pr + 0.5, marker=marker, s=size,
-                   c=COLORS[poi_keys[i]], edgecolors="white",
+                   c=colors[i], edgecolors="white",
                    linewidths=1.5, zorder=4)
         ax.text(pc + 0.5, pr + 0.15, f"P{i}: {poi_scores[i]:.2f}",
                 ha="center", va="center", fontsize=6,
@@ -220,8 +244,7 @@ def render_eval_heatmaps(
     fig, (ax_left, ax_mid, ax_right) = plt.subplots(1, 3, figsize=(19, 6))
     agent_axes = {agents[0]: ax_left, agents[1]: ax_right}
 
-    render_grid(env, title="Initial State", ax=ax_mid, show=False)
-
+    all_scores = {}
     for agent in agents:
         ax = agent_axes[agent]
         cfg = agent_configs[agent]
@@ -232,12 +255,17 @@ def render_eval_heatmaps(
         scores = compute_poi_scores(
             spawn, spawn, env.poi_positions, env.obstacle_map, cfg,
         )
+        all_scores[agent] = scores
         label = AGENT_LABELS.get(agent, agent[-1])
         _draw_heatmap_panel(
             ax, heatmap, env, agent, cfg, spawn,
             poi_scores=scores,
             subtitle=f"{cfg.name} (Agent {label})\np={cfg.privacy_emphasis}  energy={cfg.energy_model}",
         )
+
+    merged_scores = np.mean(list(all_scores.values()), axis=0)
+    render_grid(env, title="Initial State", ax=ax_mid, show=False,
+                poi_scores=merged_scores)
 
     plt.tight_layout()
     fig.suptitle(title or "Agent Evaluation Heatmaps", fontsize=13, y=1.02)
@@ -376,10 +404,8 @@ def replay_episode(
         env.last_suggestion = frame.get("last_suggestion", {})
         env.neg_turn = frame.get("neg_turn")
 
-        ax_mid.clear()
-        render_grid(env, title=f"Step {frame['timestep']}", ax=ax_mid, show=False)
-
         if has_heatmaps:
+            all_scores = {}
             for agent in agents:
                 ax = agent_axes[agent]
                 ax.clear()
@@ -394,11 +420,19 @@ def replay_episode(
                     cur_pos, spawn, env.poi_positions,
                     env.obstacle_map, cfg,
                 )
+                all_scores[agent] = scores
                 _draw_heatmap_panel(
                     ax, heatmap, env, agent, cfg, spawn,
                     poi_scores=scores,
                     current_pos=cur_pos,
                 )
+            merged_scores = np.mean(list(all_scores.values()), axis=0)
+        else:
+            merged_scores = None
+
+        ax_mid.clear()
+        render_grid(env, title=f"Step {frame['timestep']}", ax=ax_mid,
+                    show=False, poi_scores=merged_scores)
 
     anim = FuncAnimation(fig, _draw, frames=len(frames),
                          interval=interval_ms, repeat=False)
