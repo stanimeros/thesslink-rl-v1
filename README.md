@@ -12,6 +12,7 @@ Multi-Agent Reinforcement Learning system where two agents **negotiate** over Po
 | `negotiation.py` | Negotiation phase — agents exchange scores, GRU hidden persists | ~130 |
 | `navigation.py` | Navigation phase — move to agreed POI, obstacle avoidance | ~105 |
 | `train.py` | CleanRL-style PPO loop coordinating both phases | ~155 |
+| `visualization.py` | Grid rendering, training curves, episode replay GIF | ~165 |
 
 ## Key Design Decisions
 
@@ -25,6 +26,9 @@ Multi-Agent Reinforcement Learning system where two agents **negotiate** over Po
 ```bash
 pip install -r requirements.txt
 python train.py --total-episodes 500 --seed 42
+
+# With visualization (saves plots/ directory)
+python train.py --total-episodes 200 --seed 42 --visualize
 ```
 
 ## Observation Space
@@ -44,3 +48,12 @@ score = 0.5 × reachability + 0.2 × centrality + 0.3 × peer_proximity
 ```
 
 Where *reachability* accounts for distance and nearby obstacle density, *centrality* favours grid-centre POIs, and *peer_proximity* rewards targets close to both agents.
+
+## Visualization
+
+Pass `--visualize` to `train.py` to generate:
+
+- **`plots/training_curves.png`** — Golden Mean reward, reach rate, and policy loss over episodes
+- **`plots/episode_replay.gif`** — Animated step-by-step replay of the last (or specified) episode
+
+Use `--replay-episode N` to record a specific episode number instead of the last one.

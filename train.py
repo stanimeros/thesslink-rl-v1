@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import time
 from collections import defaultdict
 from typing import Dict
 
@@ -17,6 +16,7 @@ from evaluation import golden_mean_reward
 from models import HybridAgent
 from negotiation import collect_negotiation_rollout
 from navigation import collect_navigation_rollout
+from visualization import capture_frame, plot_training_curves, render_grid, replay_episode
 
 
 def parse_args() -> argparse.Namespace:
@@ -32,6 +32,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--max-grad-norm", type=float, default=0.5)
     p.add_argument("--update-epochs", type=int, default=4)
     p.add_argument("--device", type=str, default="cpu")
+    p.add_argument("--visualize", action="store_true", help="Save training curves and a replay GIF")
+    p.add_argument("--replay-episode", type=int, default=-1,
+                   help="Which episode to record for replay (-1 = last)")
     return p.parse_args()
 
 
@@ -119,20 +122,30 @@ def main():
     agents_models = {a: model for a in env.possible_agents}  # shared weights
 
     stats = defaultdict(list)
+    replay_target = args.replay_episode if args.replay_episode >= 0 else args.total_episodes
+    replay_frames: list[dict] = []
 
     for ep in range(1, args.total_episodes + 1):
         env.reset(seed=args.seed + ep)
+        recording = args.visualize and ep == replay_target
+
+        if recording:
+            replay_frames.append(capture_frame(env))
 
         agreed_poi, poi_scores, hidden, neg_rollout = collect_negotiation_rollout(
             env, agents_models, device
         )
 
+        if recording:
+            replay_frames.append(capture_frame(env))
+
         sa = poi_scores[env.possible_agents[0]][agreed_poi]
         sb = poi_scores[env.possible_agents[1]][agreed_poi]
         gm = golden_mean_reward(float(sa), float(sb))
 
+        frame_cb = (lambda e: replay_frames.append(capture_frame(e))) if recording else None
         nav_rollout, reached = collect_navigation_rollout(
-            env, agents_models, hidden, device, golden_mean=gm
+            env, agents_models, hidden, device, golden_mean=gm, on_step=frame_cb
         )
 
         merged: Dict[str, list] = {a: neg_rollout[a] + nav_rollout[a] for a in env.possible_agents}
@@ -165,6 +178,14 @@ def main():
             )
 
     print("Training complete.")
+
+    if args.visualize:
+        print("Saving training curves …")
+        plot_training_curves(stats, show=False)
+        if replay_frames:
+            print(f"Saving episode replay GIF ({len(replay_frames)} frames) …")
+            replay_episode(replay_frames, env, show=False)
+        print("Plots saved to plots/ directory.")
 
 
 if __name__ == "__main__":

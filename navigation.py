@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict
+from typing import Callable, Dict
 
 import numpy as np
 import torch
@@ -21,8 +21,12 @@ def run_navigation(
     hidden_states: Dict[str, torch.Tensor | None],
     device: torch.device,
     max_steps: int | None = None,
+    on_step: Callable[[GridNegotiationEnv], None] | None = None,
 ) -> tuple[Dict[str, list], bool]:
     """Execute the navigation phase until the POI is reached or time runs out.
+
+    Args:
+        on_step: optional callback invoked after each env.step (for recording frames)
 
     Returns:
         rollout: {agent: [step_dicts]} with obs/action/logprob/value per step
@@ -65,6 +69,8 @@ def run_navigation(
             }
 
         obs_next, rewards, terminated, truncated, infos = env.step(actions)
+        if on_step is not None:
+            on_step(env)
 
         for agent in alive_agents:
             step_data[agent]["reward"] = rewards.get(agent, 0.0) + NAV_STEP_PENALTY
@@ -103,8 +109,11 @@ def collect_navigation_rollout(
     hidden_states: Dict[str, torch.Tensor | None],
     device: torch.device,
     golden_mean: float,
+    on_step: Callable[[GridNegotiationEnv], None] | None = None,
 ) -> tuple[Dict[str, list], bool]:
     """Full navigation collection with reward shaping applied."""
-    nav_rollout, reached = run_navigation(env, agents_models, hidden_states, device)
+    nav_rollout, reached = run_navigation(
+        env, agents_models, hidden_states, device, on_step=on_step
+    )
     nav_rollout = compute_nav_rewards(nav_rollout, reached, golden_mean)
     return nav_rollout, reached
