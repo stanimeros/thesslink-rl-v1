@@ -155,6 +155,7 @@ for alg in "${ALGOS[@]}"; do
         --config="$alg" \
         --env-config=thesslink \
         with \
+        local_results_path=epymarl/results \
         save_model=True \
         save_model_interval=50000 \
         > "$logfile" 2>&1 &
