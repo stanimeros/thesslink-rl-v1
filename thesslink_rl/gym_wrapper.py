@@ -179,9 +179,13 @@ class GridNegotiationGymEnv(gym.Env):
         truncated = all(truncated_d[a] for a in agents)
 
         reached = any("reached_poi" in infos_d.get(a, {}) for a in agents)
+        # Logged by EPyMARL as test_negotiation_agreed_mean (fraction of eval
+        # episodes where agents agreed on a POI before the episode ended).
+        negotiation_agreed = self._env.agreed_poi is not None
         info: dict[str, Any] = {
             "battle_won": reached,
             "reached_poi": int(reached),
+            "negotiation_agreed": float(negotiation_agreed),
         }
 
         return obs_tuple, rewards, done, truncated, info

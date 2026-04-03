@@ -78,6 +78,7 @@ def print_results_table(metrics: dict):
 
     keys_of_interest = [
         "test_return_mean", "test_return_std",
+        "test_negotiation_agreed_mean",
         "test_battle_won_mean", "test_ep_length_mean",
         "test_reached_poi_mean",
     ]
@@ -121,19 +122,28 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
     print(f"{'='*60}")
 
     # --- 3a. Training curves from Sacred metrics ---
+    steps = metrics.get("test_return_mean", {}).get("steps", [])
     gm_vals = metrics.get("test_return_mean", {}).get("values", [])
+    neg_vals = metrics.get("test_negotiation_agreed_mean", {}).get("values", [])
     reached_vals = metrics.get("test_battle_won_mean", {}).get("values", [])
-    loss_vals = metrics.get("loss", {}).get("values", [])
+    epl_vals = metrics.get("test_ep_length_mean", {}).get("values", [])
 
     stats = {
-        "gm": gm_vals,
-        "reached": reached_vals,
-        "pg_loss": loss_vals,
+        "common_reward": gm_vals,
+        "negotiate": [v * 100.0 for v in neg_vals],
+        "reach": [v * 100.0 for v in reached_vals],
+        "ep_len": epl_vals,
     }
     fname = _make_filename("training_curves", "png", algo)
     print(f"  [1/3] Training curves...")
-    plot_training_curves(stats, window=min(5, max(1, len(gm_vals))),
-                         save_path=True, show=False, algo=algo)
+    plot_training_curves(
+        stats,
+        window=min(5, max(1, len(gm_vals))),
+        save_path=True,
+        show=False,
+        algo=algo,
+        timesteps=steps if steps else None,
+    )
     print(f"         -> plots/{fname}")
 
     # --- 3b. Evaluation heatmaps ---

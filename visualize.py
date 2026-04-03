@@ -18,6 +18,8 @@ import argparse
 import json
 from pathlib import Path
 
+from thesslink_rl.visualization import rolling_mean_expanding
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -62,33 +64,29 @@ def plot_comparison_curves(
     save_path: str | None = None,
 ):
     """Plot all algorithms on the same figure for comparison."""
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    fig, axes = plt.subplots(1, 4, figsize=(22, 5))
 
+    # Order: mean common reward, negotiate rate, reach rate, episode length.
     panels = [
-        ("test_return_mean", "Golden Mean Reward"),
-        ("test_battle_won_mean", "Reach Rate (%)"),
-        ("test_ep_length_mean", "Episode Length"),
+        ("test_return_mean", "Mean common reward", False),
+        ("test_negotiation_agreed_mean", "Negotiate rate (%)", True),
+        ("test_battle_won_mean", "Reach rate (%)", True),
+        ("test_ep_length_mean", "Episode length", False),
     ]
 
-    for ax, (metric_key, label) in zip(axes, panels):
+    for ax, (metric_key, label, as_percent) in zip(axes, panels):
         for algo, metrics in runs.items():
             if metric_key not in metrics:
                 continue
             steps = np.array(metrics[metric_key]["steps"])
             values = np.array(metrics[metric_key]["values"])
-            if metric_key == "test_battle_won_mean":
-                values = values * 100
+            if as_percent:
+                values = values * 100.0
             color = ALGO_COLORS.get(algo, None)
             ax.plot(steps, values, alpha=0.3, color=color, linewidth=0.8)
-            if len(values) >= window:
-                kernel = np.ones(window) / window
-                smoothed = np.convolve(values, kernel, mode="valid")
-                smooth_steps = steps[window - 1:]
-                ax.plot(smooth_steps, smoothed, color=color, linewidth=2,
-                        label=algo.upper())
-            else:
-                ax.plot(steps, values, color=color, linewidth=2,
-                        label=algo.upper())
+            smoothed = rolling_mean_expanding(values, window)
+            ax.plot(steps, smoothed, color=color, linewidth=2,
+                    label=algo.upper())
 
         ax.set_xlabel("Timesteps")
         ax.set_title(label, fontsize=12)
@@ -110,20 +108,25 @@ def plot_per_algo_curves(runs: dict[str, dict], window: int = 10):
     from thesslink_rl.visualization import _make_filename
 
     for algo, metrics in runs.items():
+        steps = metrics.get("test_return_mean", {}).get("steps", [])
         gm = metrics.get("test_return_mean", {}).get("values", [])
+        neg = metrics.get("test_negotiation_agreed_mean", {}).get("values", [])
         reached = metrics.get("test_battle_won_mean", {}).get("values", [])
+        epl = metrics.get("test_ep_length_mean", {}).get("values", [])
 
-        for loss_key in ("loss", "pg_loss", "coma_loss", "critic_loss"):
-            loss = metrics.get(loss_key, {}).get("values", [])
-            if loss:
-                break
-
-        stats = {"gm": gm, "reached": reached, "pg_loss": loss}
+        stats = {
+            "common_reward": gm,
+            "negotiate": [v * 100.0 for v in neg],
+            "reach": [v * 100.0 for v in reached],
+            "ep_len": epl,
+        }
 
         from thesslink_rl.visualization import plot_training_curves
+        w = min(window, max(1, len(gm)))
         plot_training_curves(
-            stats, window=min(window, max(1, len(gm))),
+            stats, window=w,
             save_path=True, show=False, algo=algo,
+            timesteps=steps if steps else None,
         )
         fname = _make_filename("training_curves", "png", algo)
         print(f"  -> plots/{fname}")
@@ -197,17 +200,23 @@ def generate_heatmaps_and_replays(algos: list[str]):
 def print_summary(runs: dict[str, dict]):
     """Print a results table."""
     print()
-    header = f"  {'ALG':<7} {'T_ENV':>8} {'RETURN':>8} {'REACH%':>8} {'EP_LEN':>8}"
+    header = (
+        f"  {'ALG':<7} {'T_ENV':>8} {'RETURN':>8} {'NEG%':>7} "
+        f"{'REACH%':>8} {'EP_LEN':>8}"
+    )
     print(header)
     print("  " + "-" * (len(header) - 2))
     for algo, metrics in sorted(runs.items()):
         ret = metrics.get("test_return_mean", {}).get("values", [])
+        neg = metrics.get("test_negotiation_agreed_mean", {}).get("values", [])
         bw = metrics.get("test_battle_won_mean", {}).get("values", [])
         epl = metrics.get("test_ep_length_mean", {}).get("values", [])
         steps = metrics.get("test_return_mean", {}).get("steps", [])
+        neg_s = f"{(neg[-1] * 100):>6.1f}%" if neg else "   —  "
         print(
             f"  {algo.upper():<7} {steps[-1] if steps else 0:>8} "
             f"{ret[-1] if ret else 0:>8.4f} "
+            f"{neg_s:>7} "
             f"{(bw[-1] * 100) if bw else 0:>7.1f}% "
             f"{epl[-1] if epl else 0:>8.1f}"
         )

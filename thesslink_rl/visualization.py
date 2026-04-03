@@ -247,6 +247,26 @@ def render_eval_heatmaps(
 
 # ── 4. Training curves ──────────────────────────────────────────────────
 
+
+def rolling_mean_expanding(values: np.ndarray, window: int) -> np.ndarray:
+    """Trailing mean over at most *window* points; same length as *values*.
+
+    The first index uses a 1-point mean, then 2, … up to *window* points, so the
+    smoothed curve spans the full x-range (unlike ``np.convolve(..., mode="valid")``).
+    """
+    values = np.asarray(values, dtype=float)
+    n = len(values)
+    if n == 0:
+        return values
+    w = max(1, int(window))
+    cumsum = np.concatenate([[0.0], np.cumsum(values)])
+    out = np.empty(n, dtype=float)
+    for i in range(n):
+        lo = max(0, i - w + 1)
+        out[i] = (cumsum[i + 1] - cumsum[lo]) / (i - lo + 1)
+    return out
+
+
 def plot_training_curves(
     stats: Dict[str, list],
     window: int = 20,
@@ -254,30 +274,40 @@ def plot_training_curves(
     show: bool = True,
     algo: str | None = None,
     env_name: str | None = None,
+    timesteps: list | None = None,
 ):
-    """Plot Golden Mean, reach rate, and PG loss with a rolling average."""
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+    """Plot test metrics vs timesteps: common reward, negotiate/reach rates, ep length.
+
+    (Policy-gradient / TD *losses* are training objectives logged separately by EPyMARL,
+    not environment returns — omit here to focus on eval behaviour.)
+    """
+    fig, axes = plt.subplots(1, 4, figsize=(20, 4))
 
     panels = [
-        ("gm", "Golden Mean Reward", "#2ecc71"),
-        ("reached", "Reach Rate", "#3498db"),
-        ("pg_loss", "Policy Loss", "#e74c3c"),
+        ("common_reward", "Mean common reward", "#2ecc71"),
+        ("negotiate", "Negotiate rate (%)", "#9b59b6"),
+        ("reach", "Reach rate (%)", "#3498db"),
+        ("ep_len", "Episode length", "#e67e22"),
     ]
+
+    x = np.asarray(timesteps, dtype=float) if timesteps is not None else None
 
     for ax, (key, label, color) in zip(axes, panels):
         data = np.array(stats.get(key, []))
         if len(data) == 0:
             ax.set_title(label)
             continue
-        episodes = np.arange(1, len(data) + 1)
-        ax.plot(episodes, data, alpha=0.25, color=color, linewidth=0.8)
-        if len(data) >= window:
-            kernel = np.ones(window) / window
-            smoothed = np.convolve(data, kernel, mode="valid")
-            ax.plot(np.arange(window, len(data) + 1), smoothed,
-                    color=color, linewidth=2, label=f"{window}-ep avg")
-            ax.legend(fontsize=8)
-        ax.set_xlabel("Episode")
+        if x is not None and len(x) == len(data):
+            xv = x
+            ax.set_xlabel("Timesteps")
+        else:
+            xv = np.arange(1, len(data) + 1)
+            ax.set_xlabel("Test index")
+        ax.plot(xv, data, alpha=0.25, color=color, linewidth=0.8)
+        smoothed = rolling_mean_expanding(data, window)
+        ax.plot(xv, smoothed, color=color, linewidth=2,
+                label=f"{window}-pt avg")
+        ax.legend(fontsize=8)
         ax.set_title(label, fontsize=11)
         ax.grid(True, alpha=0.3)
 
