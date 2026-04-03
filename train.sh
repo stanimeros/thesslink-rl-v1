@@ -81,15 +81,6 @@ else
     ALGOS=("${ALL_ALGOS[@]}")
 fi
 
-# Validate algorithm names
-for alg in "${ALGOS[@]}"; do
-    if [ ! -f "$EPYMARL_SRC/config/algs/${alg}.yaml" ]; then
-        err "Unknown algorithm: $alg"
-        err "Available: ${ALL_ALGOS[*]}"
-        exit 1
-    fi
-done
-
 # ── Setup ────────────────────────────────────────────────────────────────
 
 log "Pulling latest changes..."
@@ -106,6 +97,15 @@ log "Activating virtualenv..."
 source "$VENV"
 log "Installing project in editable mode..."
 pip install -e . --quiet
+
+# Validate algorithm names (after git pull so config files exist)
+for alg in "${ALGOS[@]}"; do
+    if [ ! -f "$EPYMARL_SRC/config/algs/${alg}.yaml" ]; then
+        err "Unknown algorithm: $alg"
+        err "Available: ${ALL_ALGOS[*]}"
+        exit 1
+    fi
+done
 
 # ── Smoke test ───────────────────────────────────────────────────────────
 
