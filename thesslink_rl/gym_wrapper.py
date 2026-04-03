@@ -157,10 +157,7 @@ class GridNegotiationGymEnv(gym.Env):
         info: dict[str, Any] = {
             "battle_won": reached,
             "reached_poi": int(reached),
-            "phase": self._env.phase,
         }
-        if self._agreed_poi is not None:
-            info["agreed_poi"] = self._agreed_poi
 
         return obs_tuple, rewards, done, truncated, info
 

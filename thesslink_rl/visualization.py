@@ -34,9 +34,22 @@ COLORS = {
 
 OUT_DIR = Path("plots")
 
+ENV_TAG = "grid_negotiation"
+
 
 def _ensure_out_dir():
     OUT_DIR.mkdir(exist_ok=True)
+
+
+def _make_filename(
+    plot_name: str, ext: str, algo: str | None = None, env_name: str | None = None,
+) -> str:
+    """Build ``<plot>-<algo>-<env>.<ext>`` following EPyMARL naming style."""
+    parts = [plot_name]
+    if algo:
+        parts.append(algo)
+    parts.append(env_name or ENV_TAG)
+    return "-".join(parts) + f".{ext}"
 
 
 # ── 1. Static grid snapshot ─────────────────────────────────────────────
@@ -47,6 +60,8 @@ def render_grid(
     ax: plt.Axes | None = None,
     show: bool = True,
     save_path: str | None = None,
+    algo: str | None = None,
+    env_name: str | None = None,
 ) -> plt.Axes:
     """Draw the current grid state with obstacles, POIs, and agents."""
     standalone = ax is None
@@ -102,6 +117,8 @@ def render_grid(
 
     ax.set_title(title + phase_tag + neg_info, fontsize=11)
 
+    if save_path is True:
+        save_path = _make_filename("grid", "png", algo, env_name)
     if save_path:
         _ensure_out_dir()
         ax.figure.savefig(OUT_DIR / save_path, dpi=150, bbox_inches="tight")
@@ -185,6 +202,8 @@ def render_eval_heatmaps(
     title: str = "",
     show: bool = True,
     save_path: str | None = None,
+    algo: str | None = None,
+    env_name: str | None = None,
 ) -> plt.Figure:
     """Draw a 3-panel image: agent_0 heatmap | grid | agent_1 heatmap.
 
@@ -215,6 +234,8 @@ def render_eval_heatmaps(
     plt.tight_layout()
     fig.suptitle(title or "Agent Evaluation Heatmaps", fontsize=13, y=1.02)
 
+    if save_path is True:
+        save_path = _make_filename("eval_heatmaps", "png", algo, env_name)
     if save_path:
         _ensure_out_dir()
         fig.savefig(OUT_DIR / save_path, dpi=150, bbox_inches="tight")
@@ -229,8 +250,10 @@ def render_eval_heatmaps(
 def plot_training_curves(
     stats: Dict[str, list],
     window: int = 20,
-    save_path: str = "training_curves.png",
+    save_path: str | bool = True,
     show: bool = True,
+    algo: str | None = None,
+    env_name: str | None = None,
 ):
     """Plot Golden Mean, reach rate, and PG loss with a rolling average."""
     fig, axes = plt.subplots(1, 3, figsize=(15, 4))
@@ -260,8 +283,11 @@ def plot_training_curves(
 
     fig.suptitle("Training Progress", fontsize=13, y=1.02)
     plt.tight_layout()
-    _ensure_out_dir()
-    fig.savefig(OUT_DIR / save_path, dpi=150, bbox_inches="tight")
+    if save_path is True:
+        save_path = _make_filename("training_curves", "png", algo, env_name)
+    if save_path:
+        _ensure_out_dir()
+        fig.savefig(OUT_DIR / save_path, dpi=150, bbox_inches="tight")
     if show:
         plt.show()
     plt.close(fig)
@@ -273,9 +299,11 @@ def replay_episode(
     frames: list[dict],
     env: GridNegotiationEnv,
     agent_configs: Optional[Dict[str, AgentConfig]] = None,
-    save_path: str = "episode_replay.gif",
+    save_path: str | bool = True,
     interval_ms: int = 400,
     show: bool = True,
+    algo: str | None = None,
+    env_name: str | None = None,
 ):
     """Animate an episode from a list of frame snapshots.
 
@@ -331,9 +359,12 @@ def replay_episode(
 
     anim = FuncAnimation(fig, _draw, frames=len(frames),
                          interval=interval_ms, repeat=False)
-    _ensure_out_dir()
-    plt.tight_layout()
-    anim.save(str(OUT_DIR / save_path), writer="pillow", dpi=100)
+    if save_path is True:
+        save_path = _make_filename("episode_replay", "gif", algo, env_name)
+    if save_path:
+        _ensure_out_dir()
+        plt.tight_layout()
+        anim.save(str(OUT_DIR / save_path), writer="pillow", dpi=100)
     if show:
         plt.show()
     plt.close(fig)
