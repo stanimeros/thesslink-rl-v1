@@ -19,8 +19,8 @@ LOGS_DIR="$RESULTS_DIR/logs"
 EPYMARL_SRC="epymarl/src"
 VENV=".venv/bin/activate"
 
-# Read ENV_VERSION from config.py (single source of truth)
-ENV_VERSION=$(python3 -c "exec(open('config.py').read()); print(ENV_VERSION)")
+# Read ENV_VERSION from config.py (single source of truth) without importing
+ENV_VERSION=$(grep -m1 '^ENV_VERSION' config.py | awk -F'=' '{print $2}' | tr -dc '0-9')
 if [[ "$ENV_VERSION" == "1" ]]; then
     ENV_CONFIG="thesslink_v1"
 else
