@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
+ENV_TAG = "grid_negotiation_v0"
 GRID_SIZE = 10
 NUM_OBSTACLES = 10
 NUM_POIS = 3
@@ -59,7 +60,7 @@ class GridNegotiationEnv:
     Agreement happens when the active agent plays *accept*.
     """
 
-    metadata = {"name": "grid_negotiation_v0", "render_modes": ["human"]}
+    metadata = {"name": ENV_TAG, "render_modes": ["human"]}
 
     def __init__(
         self,

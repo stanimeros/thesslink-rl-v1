@@ -107,6 +107,7 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
     from thesslink_rl.environment import GridNegotiationEnv
     from thesslink_rl.evaluation import AgentConfig, compute_poi_scores
     from thesslink_rl.visualization import (
+        ENV_TAG,
         _make_filename,
         capture_frame,
         describe_actions,
@@ -114,8 +115,6 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
         render_eval_heatmaps,
         replay_episode,
     )
-
-    PLOTS_DIR.mkdir(exist_ok=True)
 
     print(f"\n{'='*60}")
     print("STEP 3: Generating Plots")
@@ -144,7 +143,7 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
         algo=algo,
         timesteps=steps if steps else None,
     )
-    print(f"         -> plots/{fname}")
+    print(f"         -> plots/{ENV_TAG}/{fname}")
 
     # --- 3b. Evaluation heatmaps ---
     models_dir = PROJECT / "thesslink_rl" / "models"
@@ -168,7 +167,7 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
     print(f"  [2/3] Evaluation heatmaps...")
     render_eval_heatmaps(env, agent_configs,
                          save_path=True, show=False, algo=algo)
-    print(f"         -> plots/{fname}")
+    print(f"         -> plots/{ENV_TAG}/{fname}")
 
     # --- 3c. Episode replay GIF (random-action demo, same env/map) ---
     env.reset(seed=42)
@@ -202,7 +201,7 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
     print(f"  [3/3] Episode replay GIF...")
     replay_episode(frames, env, agent_configs=agent_configs,
                    save_path=True, show=False, algo=algo)
-    print(f"         -> plots/{fname}")
+    print(f"         -> plots/{ENV_TAG}/{fname}")
 
 
 def main():
@@ -215,12 +214,13 @@ def main():
     generate_plots(metrics)
 
     algo = "qmix"
-    from thesslink_rl.visualization import _make_filename
+    from thesslink_rl.visualization import ENV_TAG, _make_filename
+    env_plots = PLOTS_DIR / ENV_TAG
     print(f"\n{'='*60}")
     print("SMOKE TEST COMPLETE")
     print(f"{'='*60}")
     print(f"\nResults saved in: {RESULTS_DIR}")
-    print(f"Plots saved in:   {PLOTS_DIR}")
+    print(f"Plots saved in:   {env_plots}")
     print(f"  - {_make_filename('training_curves', 'png', algo)}")
     print(f"  - {_make_filename('eval_heatmaps', 'png', algo)}")
     print(f"  - {_make_filename('episode_replay', 'gif', algo)}")

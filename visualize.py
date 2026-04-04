@@ -26,6 +26,8 @@ import numpy as np
 from thesslink_rl.environment import GridNegotiationEnv
 from thesslink_rl.evaluation import AgentConfig, compute_poi_scores
 from thesslink_rl.visualization import (
+    ENV_TAG,
+    _env_out_dir,
     _make_filename,
     capture_frame,
     describe_actions,
@@ -113,11 +115,11 @@ def plot_comparison_curves(
     fig.suptitle("Algorithm Comparison -- ThessLink Grid Negotiation", fontsize=14, y=1.02)
     plt.tight_layout()
 
-    PLOTS_DIR.mkdir(exist_ok=True)
-    out = save_path or "training_curves-all-grid_negotiation.png"
-    fig.savefig(PLOTS_DIR / out, dpi=150, bbox_inches="tight")
+    env_dir = _env_out_dir()
+    out = save_path or "training_curves-all.png"
+    fig.savefig(env_dir / out, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print(f"  -> plots/{out}")
+    print(f"  -> plots/{ENV_TAG}/{out}")
 
 
 def plot_per_algo_curves(runs: dict[str, dict], window: int = 10):
@@ -145,7 +147,7 @@ def plot_per_algo_curves(runs: dict[str, dict], window: int = 10):
             timesteps=steps if steps else None,
         )
         fname = _make_filename("training_curves", "png", algo)
-        print(f"  -> plots/{fname}")
+        print(f"  -> plots/{ENV_TAG}/{fname}")
 
 
 def generate_heatmaps_and_replays(algos: list[str]):
@@ -171,7 +173,7 @@ def generate_heatmaps_and_replays(algos: list[str]):
         fname = _make_filename("eval_heatmaps", "png", algo)
         render_eval_heatmaps(env, agent_configs,
                              save_path=True, show=False, algo=algo)
-        print(f"  -> plots/{fname}")
+        print(f"  -> plots/{ENV_TAG}/{fname}")
 
         env.reset(seed=SEED)
         for agent in agents:
@@ -202,7 +204,7 @@ def generate_heatmaps_and_replays(algos: list[str]):
         fname = _make_filename("episode_replay", "gif", algo)
         replay_episode(frames, env, agent_configs=agent_configs,
                        save_path=True, show=False, algo=algo)
-        print(f"  -> plots/{fname}")
+        print(f"  -> plots/{ENV_TAG}/{fname}")
 
 
 def print_summary(runs: dict[str, dict]):
@@ -253,7 +255,7 @@ def main():
         print("No training results found. Generating random episode replay & heatmaps...")
         algos = args.algo or ["random"]
         generate_heatmaps_and_replays(algos)
-        print("Done! Plots saved to plots/")
+        print(f"Done! Plots saved to plots/{ENV_TAG}/")
         return
 
     if args.algo:
@@ -261,7 +263,7 @@ def main():
         if not runs:
             print(f"No results for: {args.algo}. Generating random episode replay & heatmaps...")
             generate_heatmaps_and_replays(args.algo)
-            print("Done! Plots saved to plots/")
+            print(f"Done! Plots saved to plots/{ENV_TAG}/")
             return
 
     algos = list(runs.keys())
@@ -278,7 +280,7 @@ def main():
     print("[3/3] Eval heatmaps & episode replays...")
     generate_heatmaps_and_replays(algos)
 
-    print("Done! All plots saved to plots/")
+    print(f"Done! All plots saved to plots/{ENV_TAG}/")
 
 
 if __name__ == "__main__":

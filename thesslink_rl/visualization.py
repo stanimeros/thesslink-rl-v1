@@ -16,6 +16,7 @@ import numpy as np
 from .environment import (
     ACT_ACCEPT,
     ACT_SUGGEST_BASE,
+    ENV_TAG,
     GRID_SIZE,
     NUM_MOVE_ACTIONS,
     NUM_SUGGEST_ACTIONS,
@@ -55,21 +56,21 @@ def _poi_colors(scores: np.ndarray | None) -> list[str]:
 
 OUT_DIR = Path("plots")
 
-ENV_TAG = "grid_negotiation"
 
-
-def _ensure_out_dir():
-    OUT_DIR.mkdir(exist_ok=True)
+def _env_out_dir(env_name: str | None = None) -> Path:
+    """Return ``plots/<env_name>/``, creating it if needed."""
+    d = OUT_DIR / (env_name or ENV_TAG)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def _make_filename(
     plot_name: str, ext: str, algo: str | None = None, env_name: str | None = None,
 ) -> str:
-    """Build ``<plot>-<algo>-<env>.<ext>`` following EPyMARL naming style."""
+    """Build ``<plot>-<algo>.<ext>`` (env name is the parent directory now)."""
     parts = [plot_name]
     if algo:
         parts.append(algo)
-    parts.append(env_name or ENV_TAG)
     return "-".join(parts) + f".{ext}"
 
 
@@ -163,8 +164,8 @@ def render_grid(
     if save_path is True:
         save_path = _make_filename("grid", "png", algo, env_name)
     if save_path:
-        _ensure_out_dir()
-        ax.figure.savefig(OUT_DIR / save_path, dpi=150, bbox_inches="tight")
+        out = _env_out_dir(env_name)
+        ax.figure.savefig(out / save_path, dpi=150, bbox_inches="tight")
     if show and standalone:
         plt.show()
     return ax
@@ -286,8 +287,8 @@ def render_eval_heatmaps(
     if save_path is True:
         save_path = _make_filename("eval_heatmaps", "png", algo, env_name)
     if save_path:
-        _ensure_out_dir()
-        fig.savefig(OUT_DIR / save_path, dpi=150, bbox_inches="tight")
+        out = _env_out_dir(env_name)
+        fig.savefig(out / save_path, dpi=150, bbox_inches="tight")
     if show:
         plt.show()
     plt.close(fig)
@@ -377,8 +378,8 @@ def plot_training_curves(
     if save_path is True:
         save_path = _make_filename("training_curves", "png", algo, env_name)
     if save_path:
-        _ensure_out_dir()
-        fig.savefig(OUT_DIR / save_path, dpi=150, bbox_inches="tight")
+        out = _env_out_dir(env_name)
+        fig.savefig(out / save_path, dpi=150, bbox_inches="tight")
     if show:
         plt.show()
     plt.close(fig)
@@ -491,9 +492,9 @@ def replay_episode(
     if save_path is True:
         save_path = _make_filename("episode_replay", "gif", algo, env_name)
     if save_path and pil_frames:
-        _ensure_out_dir()
+        out = _env_out_dir(env_name)
         pil_frames[0].save(
-            str(OUT_DIR / save_path),
+            str(out / save_path),
             save_all=True,
             append_images=pil_frames[1:],
             duration=durations,
