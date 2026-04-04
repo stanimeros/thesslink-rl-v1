@@ -145,9 +145,9 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
     print(f"{'='*60}")
 
     # --- 3a. Training curves from Sacred metrics ---
-    from visualize import _test_reward_series
+    from thesslink_rl.checkpoints import test_reward_series
 
-    steps_arr, vals_arr = _test_reward_series(metrics)
+    steps_arr, vals_arr = test_reward_series(metrics)
     steps = steps_arr.tolist() if steps_arr.size else []
     gm_vals = vals_arr.tolist() if vals_arr.size else []
     neg_vals = metrics.get("test_negotiation_agreed_mean", {}).get("values", [])

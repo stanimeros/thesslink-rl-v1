@@ -34,6 +34,7 @@ from thesslink_rl.checkpoints import (
     find_best_checkpoint_timestep_dir,
     load_epymarl_config_for_algo,
     rollout_episode_frames_for_gif,
+    test_reward_series,
 )
 from thesslink_rl.evaluation import AgentConfig, compute_poi_scores
 from thesslink_rl.visualization import (
@@ -48,7 +49,6 @@ from thesslink_rl.visualization import (
 )
 
 PROJECT = Path(__file__).resolve().parent
-PLOTS_DIR = PROJECT / "plots"
 SEED = 42
 EXAMPLE_TAG = "example"
 
@@ -93,46 +93,19 @@ def discover_runs(results_dir: Path) -> dict[str, dict]:
     return runs
 
 
-def _test_reward_series(metrics: dict) -> tuple[np.ndarray, np.ndarray]:
-    """Timesteps and values for test reward.
-
-    Prefer ``test_total_return_mean`` when present (``common_reward=False``: IQL,
-    MAPPO log mean episode sum of per-agent returns). Otherwise
-    ``test_return_mean`` (common reward). Finally sum ``test_agent_*_return_mean``
-    if aligned on steps.
-    """
-    tr = metrics.get("test_total_return_mean", {})
-    if tr.get("values"):
-        return np.asarray(tr["steps"], dtype=float), np.asarray(tr["values"], dtype=float)
-    rm = metrics.get("test_return_mean", {})
-    if rm.get("values"):
-        return np.asarray(rm["steps"], dtype=float), np.asarray(rm["values"], dtype=float)
-    keys = sorted(
-        k for k in metrics
-        if k.startswith("test_agent_") and k.endswith("_return_mean")
-    )
-    if not keys:
-        return np.array([]), np.array([])
-    steps = np.asarray(metrics[keys[0]]["steps"], dtype=float)
-    total = np.zeros(len(metrics[keys[0]]["values"]), dtype=float)
-    for k in keys:
-        m = metrics[k]
-        if not m.get("values"):
-            continue
-        s = np.asarray(m["steps"], dtype=float)
-        v = np.asarray(m["values"], dtype=float)
-        if s.shape != steps.shape or (s != steps).any() or v.shape[0] != total.shape[0]:
-            continue
-        total += v
-    if total.size == 0:
-        return np.array([]), np.array([])
-    return steps, total
+def _sync_poi_scores(env: GridNegotiationEnv, agent_configs: dict[str, AgentConfig]) -> None:
+    """After ``reset``, fill ``env.poi_scores`` from spawn positions."""
+    for agent in env.possible_agents:
+        spawn = tuple(env.spawn_positions[agent])
+        env.poi_scores[agent] = compute_poi_scores(
+            spawn, spawn, env.poi_positions, env.obstacle_map,
+            agent_configs[agent],
+        )
 
 
 def plot_comparison_curves(
     runs: dict[str, dict],
     window: int = 10,
-    save_path: str | None = None,
 ):
     """Plot all algorithms on the same figure for comparison."""
     fig, axes = plt.subplots(1, 5, figsize=(27, 5))
@@ -141,7 +114,7 @@ def plot_comparison_curves(
     ax0 = axes[0]
     has_reward = False
     for algo, metrics in runs.items():
-        steps, values = _test_reward_series(metrics)
+        steps, values = test_reward_series(metrics)
         if values.size == 0:
             continue
         has_reward = True
@@ -188,7 +161,7 @@ def plot_comparison_curves(
     plt.tight_layout()
 
     env_dir = _env_out_dir(ENV_TAG)
-    out = save_path or "training_curves-all.png"
+    out = "training_curves-all.png"
     fig.savefig(env_dir / out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"  -> plots/{ENV_TAG}/{out}")
@@ -197,7 +170,7 @@ def plot_comparison_curves(
 def plot_per_algo_curves(runs: dict[str, dict], window: int = 10):
     """Plot individual training curves per algorithm."""
     for algo, metrics in runs.items():
-        steps_arr, vals_arr = _test_reward_series(metrics)
+        steps_arr, vals_arr = test_reward_series(metrics)
         steps = steps_arr.tolist() if steps_arr.size else []
         gm = vals_arr.tolist() if vals_arr.size else []
         neg = metrics.get("test_negotiation_agreed_mean", {}).get("values", [])
@@ -232,14 +205,8 @@ def generate_example_plots() -> None:
     agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
     env = GridNegotiationEnv(agent_configs=agent_configs, seed=SEED)
     env.reset(seed=SEED)
+    _sync_poi_scores(env, agent_configs)
     agents = env.possible_agents
-    for agent in agents:
-        spawn = tuple(env.spawn_positions[agent])
-        scores = compute_poi_scores(
-            spawn, spawn, env.poi_positions, env.obstacle_map,
-            agent_configs[agent],
-        )
-        env.poi_scores[agent] = scores
 
     n = 24
     steps = [i * 50_000 for i in range(1, n + 1)]
@@ -273,13 +240,7 @@ def generate_example_plots() -> None:
     print(f"  -> plots/{ENV_TAG}/{_make_filename('eval_heatmaps', 'png', EXAMPLE_TAG)}")
 
     env.reset(seed=SEED)
-    for agent in agents:
-        spawn = tuple(env.spawn_positions[agent])
-        scores = compute_poi_scores(
-            spawn, spawn, env.poi_positions, env.obstacle_map,
-            agent_configs[agent],
-        )
-        env.poi_scores[agent] = scores
+    _sync_poi_scores(env, agent_configs)
     frames = _random_episode_frames(env)
     print(f"[3/3] Example episode replay ({_make_filename('episode_replay', 'gif', EXAMPLE_TAG)})")
     replay_episode(
@@ -330,14 +291,7 @@ def generate_heatmaps_and_replays(
     env = GridNegotiationEnv(agent_configs=agent_configs, seed=SEED)
 
     env.reset(seed=SEED)
-    agents = env.possible_agents
-    for agent in agents:
-        spawn = tuple(env.spawn_positions[agent])
-        scores = compute_poi_scores(
-            spawn, spawn, env.poi_positions, env.obstacle_map,
-            agent_configs[agent],
-        )
-        env.poi_scores[agent] = scores
+    _sync_poi_scores(env, agent_configs)
 
     render_eval_heatmaps(
         env, agent_configs,
@@ -349,14 +303,7 @@ def generate_heatmaps_and_replays(
     for raw_algo in algos:
         algo = raw_algo.lower()
         env.reset(seed=SEED)
-        agents = env.possible_agents
-        for agent in agents:
-            spawn = tuple(env.spawn_positions[agent])
-            scores = compute_poi_scores(
-                spawn, spawn, env.poi_positions, env.obstacle_map,
-                agent_configs[agent],
-            )
-            env.poi_scores[agent] = scores
+        _sync_poi_scores(env, agent_configs)
 
         frames: list[dict] | None = None
         metrics = runs.get(algo) if runs else None
@@ -418,7 +365,7 @@ def print_summary(runs: dict[str, dict]):
     print(header)
     print("  " + "-" * (len(header) - 2))
     for algo, metrics in sorted(runs.items()):
-        steps_arr, vals_arr = _test_reward_series(metrics)
+        steps_arr, vals_arr = test_reward_series(metrics)
         ret = vals_arr.tolist() if vals_arr.size else []
         steps = steps_arr.tolist() if steps_arr.size else []
         neg = metrics.get("test_negotiation_agreed_mean", {}).get("values", [])
@@ -478,12 +425,9 @@ def main():
     models_root = Path(args.models) if args.models else None
     mr_display = models_root or (results_dir / "models")
     print(
-        "Output: training_curves-all.png, eval_heatmaps.png (one), "
+        "Output: training_curves-all.png, eval_heatmaps.png, "
         "training_curves-<alg>.png per algorithm, "
-        f"episode_replay-<alg>.gif per algorithm when checkpoints exist under {mr_display}.",
-    )
-    print(
-        "Plus training_curves-all.png comparing all selected algorithms.\n",
+        f"episode_replay-<alg>.gif per algorithm when checkpoints exist under {mr_display}.\n",
     )
 
     print_summary(runs)

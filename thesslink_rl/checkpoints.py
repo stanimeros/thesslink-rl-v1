@@ -13,11 +13,15 @@ from typing import Any, Callable, Dict
 import numpy as np
 import yaml
 
-# --- Sacred metrics → best environment timestep (matches visualize._test_reward_series) ---
+# --- Sacred metrics → best environment timestep ---
 
 
-def _test_reward_series(metrics: dict) -> tuple[np.ndarray, np.ndarray]:
-    """Timesteps and values for test return (same precedence as ``visualize.py``)."""
+def test_reward_series(metrics: dict) -> tuple[np.ndarray, np.ndarray]:
+    """Timesteps and values for test return (Sacred metrics).
+
+    Prefer ``test_total_return_mean`` (e.g. IQL/MAPPO). Else ``test_return_mean``.
+    Else sum per-agent ``test_agent_*_return_mean`` when steps align.
+    """
     tr = metrics.get("test_total_return_mean", {})
     if tr.get("values"):
         return np.asarray(tr["steps"], dtype=float), np.asarray(tr["values"], dtype=float)
@@ -35,14 +39,20 @@ def _test_reward_series(metrics: dict) -> tuple[np.ndarray, np.ndarray]:
     for k in keys:
         m = metrics[k]
         if not m.get("values"):
-            return np.array([]), np.array([])
-        total += np.asarray(m["values"], dtype=float)
+            continue
+        s = np.asarray(m["steps"], dtype=float)
+        v = np.asarray(m["values"], dtype=float)
+        if s.shape != steps.shape or (s != steps).any() or v.shape[0] != total.shape[0]:
+            continue
+        total += v
+    if total.size == 0:
+        return np.array([]), np.array([])
     return steps, total
 
 
 def best_test_env_timestep(metrics: dict) -> int | None:
     """Return the logged ``t_env`` at which test return is highest (argmax)."""
-    steps, vals = _test_reward_series(metrics)
+    steps, vals = test_reward_series(metrics)
     if steps.size == 0 or vals.size == 0:
         return None
     return int(steps[int(np.argmax(vals))])
