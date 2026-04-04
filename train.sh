@@ -5,7 +5,7 @@
 # Usage:
 #   ./train.sh                  # train all algorithms (iql qmix vdn mappo coma)
 #   ./train.sh qmix mappo       # train only qmix and mappo
-#   ./train.sh --status          # show live training dashboard
+#   ./train.sh --status          # live dashboard (run from repo root, or use absolute path to this script)
 #   ./train.sh --kill            # kill all running training processes
 #
 # Results layout (epymarl/results/): logs/ (nohup), sacred/, models/
