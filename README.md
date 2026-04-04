@@ -31,10 +31,10 @@ pip install -r requirements.txt
 
 ### 3. Run an algorithm
 
-Copy the env config into EPyMARL:
+Copy ThessLink env configs into EPyMARL (add new `thesslink_*.yaml` files under `epymarl_config/envs/` as needed):
 
 ```bash
-cp ../epymarl_config/thesslink.yaml src/config/envs/thesslink.yaml
+cp ../epymarl_config/envs/*.yaml src/config/envs/
 ```
 
 Then run any algorithm:

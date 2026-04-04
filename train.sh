@@ -144,10 +144,17 @@ log "Applying patches to EPyMARL..."
 git -C epymarl checkout -- . 2>/dev/null || true
 git -C epymarl apply ../epymarl_config/patches/epymarl.patch && log "Patches applied." || warn "Patches already applied or failed."
 
-log "Copying thesslink env configs into EPyMARL..."
-cp epymarl_config/thesslink.yaml "$EPYMARL_SRC/config/envs/thesslink.yaml"
-cp epymarl_config/thesslink_v1.yaml "$EPYMARL_SRC/config/envs/thesslink_v1.yaml"
-cp epymarl_config/thesslink_v2.yaml "$EPYMARL_SRC/config/envs/thesslink_v2.yaml"
+log "Copying ThessLink env YAMLs into EPyMARL (epymarl_config/envs/*.yaml)..."
+_copied=0
+for _f in epymarl_config/envs/*.yaml; do
+    [[ -f "$_f" ]] || continue
+    cp "$_f" "$EPYMARL_SRC/config/envs/"
+    ((_copied++)) || true
+done
+if ((_copied == 0)); then
+    err "No YAML files in epymarl_config/envs/ — add thesslink*.yaml (or new versions) there."
+    exit 1
+fi
 
 # Validate algorithm names
 for alg in "${ALGOS[@]}"; do
