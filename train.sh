@@ -8,6 +8,10 @@
 #   ./train.sh --status          # show live training dashboard
 #   ./train.sh --kill            # kill all running training processes
 #
+# Results layout (epymarl/results/): logs/ (nohup), sacred/, models/
+# The tree is wiped before smoke and again after smoke so full training only
+# sees fresh Sacred/model paths for the active ENV_CONFIG YAML.
+#
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -28,6 +32,14 @@ err()  { echo -e "\033[1;31m[train]\033[0m $*" >&2; }
 kill_training() {
     log "Killing running training processes..."
     pkill -f "$EPYMARL_SRC/main.py" 2>/dev/null && log "Killed." || log "No processes found."
+}
+
+# EPyMARL + Sacred write under epymarl/results/{sacred,models}; we keep nohup logs in epymarl/results/logs.
+prepare_results_tree() {
+    local phase="$1"
+    log "Resetting results tree ($phase)..."
+    rm -rf "$RESULTS_DIR"
+    mkdir -p "$RESULTS_DIR/logs" "$RESULTS_DIR/sacred" "$RESULTS_DIR/models"
 }
 
 show_status() {
@@ -150,6 +162,9 @@ done
 
 # ── Smoke test ───────────────────────────────────────────────────────────
 
+prepare_results_tree "before smoke — only QMIX short run + plots"
+log "Smoke will use --env-config=${ENV_CONFIG} (see epymarl/src/config/envs/${ENV_CONFIG}.yaml)"
+
 log "Running smoke test..."
 if python smoke_test.py; then
     log "Smoke test passed!"
@@ -158,9 +173,7 @@ else
     exit 1
 fi
 
-log "Cleaning previous results..."
-rm -rf "$RESULTS_DIR"/*
-mkdir -p "$LOGS_DIR"
+prepare_results_tree "after smoke — full multi-algo training"
 
 # ── Launch training ──────────────────────────────────────────────────────
 
