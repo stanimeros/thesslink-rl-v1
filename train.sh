@@ -50,21 +50,34 @@ prepare_results_tree() {
     mkdir -p "$RESULTS_DIR/logs" "$RESULTS_DIR/sacred" "$RESULTS_DIR/models"
 }
 
+# Last float after KEY (KEY includes trailing ':') on the last log line that contains KEY.
+_stat_last() {
+    local logf="$1" key="$2"
+    grep -aF "$key" "$logf" 2>/dev/null | tail -n1 | sed -n "s/.*${key}[[:space:]]*\\([0-9.eE+-]*\\).*/\\1/p" | head -n1
+}
+
+_pct() {
+    awk -v x="${1:-0}" 'BEGIN { printf "%.1f", x * 100 }'
+}
+
 show_status() {
     export LC_NUMERIC=C
+    local log_root="$SCRIPT_DIR/$LOGS_DIR"
+    local any=0
     echo ""
     echo " ALG  |   T_ENV |   RETURN |   NEG% | OPT_N% | REACH% | EP_LEN"
     echo "------|---------|----------|--------|--------|--------|-------"
     for alg in "${ALL_ALGOS[@]}"; do
-        local logf="$LOGS_DIR/${alg}.log"
+        local logf="$log_root/${alg}.log"
         [ -f "$logf" ] || continue
+        any=1
         local tenv ret neg neg_opt reach eplen n n_perc no_perc r_perc
-        tenv=$(grep -a 't_env:' "$logf" 2>/dev/null | tail -n1 | awk -F't_env: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        ret=$(grep -a 'test_return_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_return_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        neg=$(grep -a 'test_negotiation_agreed_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_negotiation_agreed_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        neg_opt=$(grep -a 'test_negotiation_optimal_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_negotiation_optimal_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        reach=$(grep -a 'test_battle_won_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_battle_won_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        eplen=$(grep -a 'test_ep_length_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_ep_length_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
+        tenv=$(_stat_last "$logf" "t_env:")
+        ret=$(_stat_last "$logf" "test_return_mean:")
+        neg=$(_stat_last "$logf" "test_negotiation_agreed_mean:")
+        neg_opt=$(_stat_last "$logf" "test_negotiation_optimal_mean:")
+        reach=$(_stat_last "$logf" "test_battle_won_mean:")
+        eplen=$(_stat_last "$logf" "test_ep_length_mean:")
         case $alg in
             iql)   n="IQL  ";;
             qmix)  n="QMIX ";;
@@ -73,20 +86,34 @@ show_status() {
             coma)  n="COMA ";;
             *)     n="$alg";;
         esac
-        n_perc=$(echo "${neg:-0} * 100" | bc -l 2>/dev/null || echo "0")
-        no_perc=$(echo "${neg_opt:-0} * 100" | bc -l 2>/dev/null || echo "0")
-        r_perc=$(echo "${reach:-0} * 100" | bc -l 2>/dev/null || echo "0")
+        n_perc=$(_pct "${neg:-0}")
+        no_perc=$(_pct "${neg_opt:-0}")
+        r_perc=$(_pct "${reach:-0}")
         printf " %5s | %7s | %8.4f | %5.1f%% | %5.1f%% | %5.1f%% | %5.1f\n" \
             "$n" "${tenv:-0}" "${ret:-0}" "${n_perc:-0}" "${no_perc:-0}" "${r_perc:-0}" "${eplen:-0}"
     done
+    if [[ "$any" -eq 0 ]]; then
+        echo " (no *.log under $log_root — training logs go there when started via this script)"
+    fi
     echo ""
 }
 
 # ── Parse arguments ──────────────────────────────────────────────────────
 
 if [[ "${1:-}" == "--status" ]]; then
-    watch -n 5 "$0 --status-once"
-    exit 0
+    # watch often exits immediately with no output when stdout is not a TTY (common over SSH)
+    # or when procps is not installed; fall back to a plain refresh loop.
+    _inv=(bash "$SCRIPT_DIR/train.sh")
+    if [[ -x "$SCRIPT_DIR/train.sh" ]]; then
+        _inv=("$SCRIPT_DIR/train.sh")
+    fi
+    if command -v watch >/dev/null 2>&1 && [[ -t 1 ]]; then
+        exec watch -n 5 "${_inv[@]}" --status-once
+    fi
+    while true; do
+        "${_inv[@]}" --status-once
+        sleep 5
+    done
 fi
 
 if [[ "${1:-}" == "--status-once" ]]; then
