@@ -219,10 +219,6 @@ def main():
 
     algo = "qmix"
     from thesslink_rl.visualization import _make_filename
-    if ENV_VERSION == 1:
-        from thesslink_rl.v1 import ENV_TAG
-    else:
-        from thesslink_rl.v0 import ENV_TAG
     env_plots = PLOTS_DIR / ENV_TAG
     print(f"\n{'='*60}")
     print("SMOKE TEST COMPLETE")

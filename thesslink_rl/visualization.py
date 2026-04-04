@@ -7,13 +7,14 @@ This module only handles rendering.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import TYPE_CHECKING, Dict, Optional
+
+if TYPE_CHECKING:
+    from .v0.environment import GridNegotiationEnv
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
-
-from thesslink_rl.v0.environment import GridNegotiationEnv
 
 from .constants import GRID_SIZE, NUM_POIS
 
@@ -21,7 +22,6 @@ ACT_SUGGEST_BASE = 5
 NUM_SUGGEST_ACTIONS = NUM_POIS
 ACT_ACCEPT = ACT_SUGGEST_BASE + NUM_SUGGEST_ACTIONS  # 8
 NUM_MOVE_ACTIONS = 5
-ENV_TAG = "v0"
 from .evaluation import (
     AgentConfig,
     compute_eval_heatmap,
@@ -57,9 +57,9 @@ def _poi_colors(scores: np.ndarray | None) -> list[str]:
 OUT_DIR = Path("plots")
 
 
-def _env_out_dir(env_name: str | None = None) -> Path:
+def _env_out_dir(env_name: str = "v0") -> Path:
     """Return ``plots/<env_name>/``, creating it if needed."""
-    d = OUT_DIR / (env_name or ENV_TAG)
+    d = OUT_DIR / env_name
     d.mkdir(parents=True, exist_ok=True)
     return d
 

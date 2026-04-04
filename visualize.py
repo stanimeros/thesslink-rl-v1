@@ -50,19 +50,31 @@ ALGO_COLORS = {
 
 
 def discover_runs(results_dir: Path) -> dict[str, dict]:
-    """Find all Sacred runs and parse their metrics."""
+    """Find Sacred runs matching the active ENV_VERSION and parse their metrics.
+
+    Sacred results live under:
+      sacred/<algo>/thesslink_rl:thesslink/GridNegotiation-v<N>/<run_id>/metrics.json
+
+    Only runs whose path contains ``GridNegotiation-v{ENV_VERSION}`` are returned.
+    """
     sacred_dir = results_dir / "sacred"
     if not sacred_dir.exists():
         print(f"No Sacred results at {sacred_dir}")
         return {}
 
+    version_marker = f"GridNegotiation-v{ENV_VERSION}"
+
     runs = {}
     for alg_dir in sorted(sacred_dir.iterdir()):
         if not alg_dir.is_dir():
             continue
-        metrics_files = list(alg_dir.rglob("metrics.json"))
+        metrics_files = [
+            f for f in alg_dir.rglob("metrics.json")
+            if version_marker in str(f)
+        ]
         if not metrics_files:
             continue
+        metrics_files.sort()
         with open(metrics_files[-1]) as f:
             metrics = json.load(f)
         runs[alg_dir.name] = metrics
