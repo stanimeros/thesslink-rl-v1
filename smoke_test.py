@@ -25,11 +25,12 @@ T_MAX = 4_000
 TEST_INTERVAL = 1_000
 SAVE_MODEL_INTERVAL = 1_000
 
-def run_training() -> Path:
+def run_training(env_version: int = 0) -> Path:
     """Launch a quick QMIX training and return the Sacred run directory."""
+    env_config = "thesslink_v1" if env_version == 1 else "thesslink"
     cmd = [
         sys.executable, str(EPYMARL_SRC / "main.py"),
-        "--config=qmix", "--env-config=thesslink",
+        "--config=qmix", f"--env-config={env_config}",
         "with",
         f"t_max={T_MAX}",
         f"test_interval={TEST_INTERVAL}",
@@ -101,13 +102,11 @@ def print_results_table(metrics: dict):
         print(f"\nOther logged metrics: {', '.join(other_keys)}")
 
 
-def generate_plots(metrics: dict, algo: str = "qmix"):
+def generate_plots(metrics: dict, algo: str = "qmix", env_version: int = 0):
     """Generate the same 3 plots the project already has."""
     import numpy as np
-    from thesslink_rl.environment import GridNegotiationEnv
     from thesslink_rl.evaluation import AgentConfig, compute_poi_scores
     from thesslink_rl.visualization import (
-        ENV_TAG,
         _make_filename,
         capture_frame,
         describe_actions,
@@ -115,6 +114,11 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
         render_eval_heatmaps,
         replay_episode,
     )
+
+    if env_version == 1:
+        from thesslink_rl.v1 import ENV_TAG, GridNegotiationEnv
+    else:
+        from thesslink_rl.v0 import ENV_TAG, GridNegotiationEnv
 
     print(f"\n{'='*60}")
     print("STEP 3: Generating Plots")
@@ -141,6 +145,7 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
         save_path=True,
         show=False,
         algo=algo,
+        env_name=ENV_TAG,
         timesteps=steps if steps else None,
     )
     print(f"         -> plots/{ENV_TAG}/{fname}")
@@ -166,7 +171,8 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
     fname = _make_filename("eval_heatmaps", "png", algo)
     print(f"  [2/3] Evaluation heatmaps...")
     render_eval_heatmaps(env, agent_configs,
-                         save_path=True, show=False, algo=algo)
+                         save_path=True, show=False, algo=algo,
+                         env_name=ENV_TAG)
     print(f"         -> plots/{ENV_TAG}/{fname}")
 
     # --- 3c. Episode replay GIF (random-action demo, same env/map) ---
@@ -200,21 +206,34 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
     fname = _make_filename("episode_replay", "gif", algo)
     print(f"  [3/3] Episode replay GIF...")
     replay_episode(frames, env, agent_configs=agent_configs,
-                   save_path=True, show=False, algo=algo)
+                   save_path=True, show=False, algo=algo,
+                   env_name=ENV_TAG)
     print(f"         -> plots/{ENV_TAG}/{fname}")
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Smoke test for ThessLink RL")
+    parser.add_argument("--env-version", type=int, default=0, choices=[0, 1],
+                        help="Environment version: 0 (grid obs) or 1 (symbolic obs)")
+    args = parser.parse_args()
+
+    env_version = args.env_version
     print("ThessLink RL v2 -- Smoke Test")
     print(f"Project: {PROJECT}")
+    print(f"Environment version: v{env_version}")
 
-    run_dir = run_training()
+    run_dir = run_training(env_version=env_version)
     metrics = load_sacred_metrics(run_dir)
     print_results_table(metrics)
-    generate_plots(metrics)
+    generate_plots(metrics, env_version=env_version)
 
     algo = "qmix"
-    from thesslink_rl.visualization import ENV_TAG, _make_filename
+    from thesslink_rl.visualization import _make_filename
+    if env_version == 1:
+        from thesslink_rl.v1 import ENV_TAG
+    else:
+        from thesslink_rl.v0 import ENV_TAG
     env_plots = PLOTS_DIR / ENV_TAG
     print(f"\n{'='*60}")
     print("SMOKE TEST COMPLETE")

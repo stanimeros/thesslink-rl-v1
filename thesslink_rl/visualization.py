@@ -13,7 +13,7 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .environment import (
+from .v0.environment import (
     ACT_ACCEPT,
     ACT_SUGGEST_BASE,
     ENV_TAG,

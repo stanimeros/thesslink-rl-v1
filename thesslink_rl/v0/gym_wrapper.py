@@ -26,7 +26,7 @@ from .environment import (
     OBS_FLAT_SIZE,
     GridNegotiationEnv,
 )
-from .evaluation import (
+from ..evaluation import (
     AgentConfig,
     bfs_distances,
     compute_poi_scores,
@@ -34,7 +34,7 @@ from .evaluation import (
     optimal_poi,
 )
 
-_PACKAGE_DIR = Path(__file__).resolve().parent
+_PACKAGE_DIR = Path(__file__).resolve().parent.parent
 
 
 class GridNegotiationGymEnv(gym.Env):
