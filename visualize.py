@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from config import ENV_CONFIG, ENV_VERSION, ENV_TAG, GridNegotiationEnv
-from thesslink_rl.epymarl_eval_rollout import (
+from thesslink_rl.checkpoints import (
     describe_models_dir_status,
     find_best_checkpoint_timestep_dir,
     load_epymarl_config_for_algo,
