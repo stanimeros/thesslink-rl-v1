@@ -21,11 +21,11 @@ VENV=".venv/bin/activate"
 
 # Read ENV_VERSION from config.py (single source of truth) without importing
 ENV_VERSION=$(grep -m1 '^ENV_VERSION' config.py | awk -F'=' '{print $2}' | tr -dc '0-9')
-if [[ "$ENV_VERSION" == "1" ]]; then
-    ENV_CONFIG="thesslink_v1"
-else
-    ENV_CONFIG="thesslink"
-fi
+case "$ENV_VERSION" in
+    2) ENV_CONFIG="thesslink_v2" ;;
+    1) ENV_CONFIG="thesslink_v1" ;;
+    *) ENV_CONFIG="thesslink" ;;
+esac
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 log()  { echo -e "\033[1;32m[train]\033[0m $*"; }
@@ -130,6 +130,7 @@ fi
 log "Copying thesslink env configs into EPyMARL..."
 cp epymarl_config/thesslink.yaml "$EPYMARL_SRC/config/envs/thesslink.yaml"
 cp epymarl_config/thesslink_v1.yaml "$EPYMARL_SRC/config/envs/thesslink_v1.yaml"
+cp epymarl_config/thesslink_v2.yaml "$EPYMARL_SRC/config/envs/thesslink_v2.yaml"
 
 log "Applying patches to EPyMARL..."
 git -C epymarl checkout -- . 2>/dev/null || true

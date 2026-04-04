@@ -20,7 +20,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-ENV_TAG = "v1"
+ENV_TAG = "v2"
 GRID_SIZE = 10
 NUM_OBSTACLES = 10
 NUM_POIS = 3

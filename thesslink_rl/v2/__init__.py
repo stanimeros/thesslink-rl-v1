@@ -1,4 +1,4 @@
-"""ThessLink RL v1 -- Symbolic observations (23 features)."""
+"""ThessLink RL v2 -- Symbolic observations (19 features) with potential-based reward shaping."""
 
 from .environment import ENV_TAG, GridNegotiationEnv
 from .gym_wrapper import GridNegotiationGymEnv
