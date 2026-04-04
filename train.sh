@@ -27,7 +27,8 @@ cd "$SCRIPT_DIR"
 
 ALL_ALGOS=(iql qmix vdn mappo coma)
 RESULTS_DIR="epymarl/results"
-LOGS_DIR="$RESULTS_DIR/logs"
+# Absolute path so --status-once works under watch/cron regardless of caller cwd.
+LOGS_DIR="$SCRIPT_DIR/$RESULTS_DIR/logs"
 EPYMARL_SRC="epymarl/src"
 VENV=".venv/bin/activate"
 
@@ -51,6 +52,9 @@ prepare_results_tree() {
 }
 
 show_status() {
+    # grep exits 1 when there is no match; with pipefail + set -e that aborts the script
+    # before any row is printed. Stats lines can be missing early in training.
+    set +o pipefail
     export LC_NUMERIC=C
     echo ""
     echo " ALG  |   T_ENV |   RETURN |   NEG% | OPT_N% | REACH% | EP_LEN"
@@ -79,6 +83,7 @@ show_status() {
         printf " %5s | %7s | %8.4f | %5.1f%% | %5.1f%% | %5.1f%% | %5.1f\n" \
             "$n" "${tenv:-0}" "${ret:-0}" "${n_perc:-0}" "${no_perc:-0}" "${r_perc:-0}" "${eplen:-0}"
     done
+    set -o pipefail
     echo ""
 }
 
