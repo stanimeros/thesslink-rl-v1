@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional
 
 if TYPE_CHECKING:
-    from .v0.environment import GridNegotiationEnv
+    # Same structural API across v0/v1/v2; v2 is representative for static typing only.
+    from .v2.environment import GridNegotiationEnv
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -57,8 +58,12 @@ def _poi_colors(scores: np.ndarray | None) -> list[str]:
 OUT_DIR = Path("plots")
 
 
-def _env_out_dir(env_name: str = "v0") -> Path:
+def _env_out_dir(env_name: str | None) -> Path:
     """Return ``plots/<env_name>/``, creating it if needed."""
+    if not env_name:
+        raise ValueError(
+            "env_name is required when saving plots (pass ENV_TAG from config, e.g. env_name=ENV_TAG)",
+        )
     d = OUT_DIR / env_name
     d.mkdir(parents=True, exist_ok=True)
     return d

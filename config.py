@@ -1,7 +1,8 @@
 """Single source of truth for the active environment version.
 
 Change ENV_VERSION here and it will propagate everywhere:
-  train.sh, visualize.py, smoke_test.py, visualization.py
+  train.sh, visualize.py, smoke_test.py, and thesslink_rl.visualization helpers
+  (via GridNegotiationEnv / ENV_TAG from callers).
 """
 
 ENV_VERSION = 2  # 0 = grid obs, 1 = symbolic obs, 2 = symbolic obs + reward shaping
