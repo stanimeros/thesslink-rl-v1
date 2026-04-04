@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# ThessLink RL v2 -- Parallel training launcher
+# ThessLink RL -- Parallel training launcher
 #
 # Usage:
 #   ./train.sh                  # train all algorithms (iql qmix vdn mappo coma)
@@ -119,9 +119,7 @@ source "$VENV"
 log "Installing project requirements..."
 pip install -r requirements.txt --quiet
 
-# ENV_VERSION / ENV_CONFIG must match smoke_test.py and visualize.py.
-# Do NOT use `tr -dc '0-9'` on the config line — comment digits (e.g. "# 0 = ... 1 = ... 2 =")
-# concatenate into a wrong value like 20122 so case 2) never matches and you get thesslink (v0).
+# Same ENV_VERSION / ENV_CONFIG as smoke_test.py and visualize.py (via import config).
 eval "$(python3 <<'PY'
 import config
 print(f"export ENV_VERSION={config.ENV_VERSION}")
