@@ -127,14 +127,14 @@ if [ ! -d "epymarl" ]; then
     pip install -e . --quiet
 fi
 
+log "Applying patches to EPyMARL..."
+git -C epymarl checkout -- . 2>/dev/null || true
+git -C epymarl apply ../epymarl_config/patches/epymarl.patch && log "Patches applied." || warn "Patches already applied or failed."
+
 log "Copying thesslink env configs into EPyMARL..."
 cp epymarl_config/thesslink.yaml "$EPYMARL_SRC/config/envs/thesslink.yaml"
 cp epymarl_config/thesslink_v1.yaml "$EPYMARL_SRC/config/envs/thesslink_v1.yaml"
 cp epymarl_config/thesslink_v2.yaml "$EPYMARL_SRC/config/envs/thesslink_v2.yaml"
-
-log "Applying patches to EPyMARL..."
-git -C epymarl checkout -- . 2>/dev/null || true
-git -C epymarl apply ../epymarl_config/patches/epymarl.patch && log "Patches applied." || warn "Patches already applied or failed."
 
 # Validate algorithm names
 for alg in "${ALGOS[@]}"; do
