@@ -171,10 +171,6 @@ def plot_comparison_curves(
         if has_data:
             ax.legend(fontsize=9)
         ax.grid(True, alpha=0.3)
-        if as_percent:
-            ax.set_ylim(0, 105)
-        if metric_key == "test_ep_length_mean":
-            ax.set_ylim(bottom=0)
 
     fig.suptitle("Algorithm Comparison -- ThessLink Grid Negotiation", fontsize=14, y=1.02)
     plt.tight_layout()

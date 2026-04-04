@@ -368,10 +368,6 @@ def plot_training_curves(
         ax.legend(fontsize=8)
         ax.set_title(label, fontsize=11)
         ax.grid(True, alpha=0.3)
-        if key in ("negotiate", "reach", "negotiate_optimal", "reach_optimal"):
-            ax.set_ylim(0, 105)
-        if key == "ep_len":
-            ax.set_ylim(0, 105)
 
     fig.suptitle("Training Progress", fontsize=13, y=1.02)
     plt.tight_layout()
