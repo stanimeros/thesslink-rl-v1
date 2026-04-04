@@ -16,7 +16,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-ENV_TAG = "grid_negotiation_v0"
+ENV_TAG = "v0"
 GRID_SIZE = 10
 NUM_OBSTACLES = 10
 NUM_POIS = 3

@@ -13,15 +13,15 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .v0.environment import (
-    ACT_ACCEPT,
-    ACT_SUGGEST_BASE,
-    ENV_TAG,
-    GRID_SIZE,
-    NUM_MOVE_ACTIONS,
-    NUM_SUGGEST_ACTIONS,
-    GridNegotiationEnv,
-)
+from thesslink_rl.v0.environment import GridNegotiationEnv
+
+from .constants import GRID_SIZE, NUM_POIS
+
+ACT_SUGGEST_BASE = 5
+NUM_SUGGEST_ACTIONS = NUM_POIS
+ACT_ACCEPT = ACT_SUGGEST_BASE + NUM_SUGGEST_ACTIONS  # 8
+NUM_MOVE_ACTIONS = 5
+ENV_TAG = "v0"
 from .evaluation import (
     AgentConfig,
     compute_eval_heatmap,

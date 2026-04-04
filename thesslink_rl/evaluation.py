@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 import yaml
 
-from .v0.environment import GRID_SIZE, NUM_POIS
+from .constants import GRID_SIZE, NUM_POIS
 
 
 @dataclass
