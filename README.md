@@ -65,21 +65,46 @@ In **negotiation**, only the active agent may use actions **5–8**; the other i
 | Navigation | One agent reaches POI | $+10 \times \text{quality}$ for that agent |
 | Navigation | **Both** at POI | Extra $+50 \times \text{quality}$ for everyone |
 
-## Evaluation (example: Drone)
+## Evaluation
 
-[`thesslink_rl/models/drone.yaml`](thesslink_rl/models/drone.yaml) sets **privacy emphasis** $\alpha = 0.4$ and a **linear** energy model. For each POI $k$ the code uses **travel cost** from the agent’s **current** cell (min–max across the three POIs; lower cost ⇒ higher $\tilde{E}_k$) and **privacy** as spawn-to-POI BFS distance divided by the **maximum** BFS distance reachable from spawn on the map (not min–max across POIs), so $\tilde{P}_k\in[0,1]$ without forcing the nearest POI to privacy $0$ unless it is almost at spawn.
+Each agent loads a profile in [`thesslink_rl/models/`](thesslink_rl/models/): **privacy emphasis** $\alpha \in [0,1]$, **energy** mode (linear or exponential), optional **$\gamma$** (`energy_exponential_gamma`), and **$w$** (`energy_step`, default $1$).
 
-$$
-s_k \;=\; (1-\alpha)\,\tilde{E}_k + \alpha\,\tilde{P}_k\,.
-$$
+**Distances (BFS on the grid).** For POI $k$: let $d_k$ = steps from the agent’s **current** cell to that POI, and $s_k$ = steps from **spawn** to that POI. Let $D_{\max}$ = largest spawn-to-cell distance among all reachable cells on the map.
 
-After agreement on POI $k^\star$, **negotiation quality** compares how good that choice is for **both** agents to the best possible common POI. Let $s_k^{(a)}$ be agent $a$’s score for POI $k$. The golden-mean vector is $g_k = \prod_a s_k^{(a)}$, and
+**Raw travel cost** to POI $k$ (lower is better to reach):
 
 $$
-\text{quality} \;=\; \frac{g_{k^\star}}{\max_\ell g_\ell} \;\in\; [0,1]\,.
+C_k =
+\begin{cases}
+w\, d_k & \text{linear} \\[0.4em]
+w\,\dfrac{\gamma^{d_k} - 1}{\gamma - 1} & \text{exponential},\ \gamma \neq 1
+\end{cases}
 $$
 
-That scalar scales the shared agreement and navigation bonuses in the reward table above.
+(Exponential mode uses a geometric step cost: first step scaled by $w$, then ratio $\gamma$ between successive steps.)
+
+**Privacy** (farther from spawn $\Rightarrow$ higher, map-wide scale):
+
+$$
+P_k = \min\!\left(1,\ \frac{s_k}{D_{\max}}\right).
+$$
+
+**Energy value** $\tilde{E}_k$: costs $C_0,C_1,C_2$ are min–maxed across the three POIs, then flipped so the cheapest trip gets $1$ and the most expensive gets $0$.
+
+**POI score** (used in observations and rewards):
+
+$$
+s_k = (1-\alpha)\,\tilde{E}_k + \alpha\, P_k\,.
+$$
+
+**Negotiation quality** after agreement on POI $k^\star$: with $s_k^{(a)}$ = agent $a$’s score,
+
+$$
+g_k = \prod_a s_k^{(a)}, \qquad
+\text{quality} = \frac{g_{k^\star}}{\max_\ell g_\ell} \in [0,1]\,.
+$$
+
+That scalar multiplies the agreement and navigation bonuses in the table above.
 
 ![Agent evaluation heatmaps: same map, different POI scores and preference fields for two agent types](plots/v2/eval_heatmaps.png)
 

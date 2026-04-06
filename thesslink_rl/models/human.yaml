@@ -3,4 +3,4 @@ privacy_emphasis: 0.6
 
 energy_step: 1.0
 energy_model: exponential
-energy_exponential_gamma: 4.0
+energy_exponential_gamma: 2.0
