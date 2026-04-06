@@ -57,7 +57,7 @@ show_status() {
     set +o pipefail
     export LC_NUMERIC=C
     echo ""
-    echo " ALG  |   T_ENV |   RETURN |   NEG% | OPT_N% | REACH% | EP_LEN"
+    echo " ALG  |   T_ENV |   RETURN |   AGR% |    GM% | REACH% | EP_LEN"
     echo "------|---------|----------|--------|--------|--------|-------"
     for alg in "${ALL_ALGOS[@]}"; do
         local logf="$LOGS_DIR/${alg}.log"
@@ -71,7 +71,7 @@ show_status() {
         fi
         neg=$(grep -a 'test_negotiation_agreed_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_negotiation_agreed_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
         neg_opt=$(grep -a 'test_negotiation_optimal_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_negotiation_optimal_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        reach=$(grep -a 'test_reached_poi_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_reached_poi_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
+        reach=$(grep -a 'test_battle_won_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_battle_won_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
         eplen=$(grep -a 'test_ep_length_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_ep_length_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
         case $alg in
             iql)   n="IQL  ";;

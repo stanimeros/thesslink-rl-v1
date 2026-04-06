@@ -105,8 +105,8 @@ def print_results_table(metrics: dict):
         "test_return_mean",
         "test_return_std",
         "test_negotiation_agreed_mean",
-        "test_battle_won_mean", "test_ep_length_mean",
-        "test_reached_poi_mean",
+        "test_battle_won_mean",
+        "test_ep_length_mean",
     ]
 
     header = f"{'Metric':<30} {'Last Value':>12} {'Steps':>8}"
