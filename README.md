@@ -93,11 +93,11 @@ Outputs under `plots/<env_tag>/` (e.g. `plots/v2/`):
 
 ![Training curves — all algorithms](plots/v2/training_curves-all.png)
 
-**MAPPO** — episode replay
+**MAPPO** — episode replay (agreement **100%**, golden-mean **93.3%**, reach **100%**)
 
 ![Episode replay — MAPPO](plots/v2/episode_replay-mappo.gif)
 
-**IQL** — episode replay
+**IQL** — episode replay (agreement **100%**, golden-mean **96.9%**, reach **100%**)
 
 ![Episode replay — IQL](plots/v2/episode_replay-iql.gif)
 
