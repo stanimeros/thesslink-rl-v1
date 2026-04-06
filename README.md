@@ -1,4 +1,4 @@
-# ThessLink RL -- Multi-Agent Grid Negotiation for EPyMARL
+# ThessLink RL - Multi-Agent Grid Negotiation for EPyMARL
 
 Two agents **negotiate** a meeting spot on a 10×10 grid, then **navigate** there. Both phases are learned with RL. Works with [EPyMARL](https://github.com/uoe-agents/epymarl) (QMIX, MAPPO, IQL, VDN, etc.).
 
@@ -16,91 +16,90 @@ Each episode: two agents spawn on a map with obstacles and **three POIs** (candi
 
 Local scripts use **`config.py` → `ENV_VERSION`** (default **2**). For EPyMARL, pick the matching config name, e.g. **`thesslink_v2`**.
 
-## POI preference (evaluation)
+## Environment (v2)
 
-Each POI gets a score in \([0, 1]\): a mix of **energy** (how costly to reach from where you are) and **privacy** (how far it is from your spawn), controlled by **`privacy_emphasis`** in the agent YAML. When rewards depend on “how good the deal was for everyone,” that uses the **product** of both agents’ scores on the chosen POI compared to the best possible common choice—so almost-optimal agreements still pay off.
+| Aspect | Description |
+|--------|-------------|
+| Grid | $10 \times 10$, **10** random obstacles, **3** POIs, **2** agents |
+| Phases | **Negotiation** (turn-based) then **Navigation** until both stand on the agreed POI |
+| Agreement | Active agent suggests a POI or **accepts** the peer’s last suggestion; on accept, navigation begins |
+| Agent models | YAML files in `thesslink_rl/models/` (energy model + privacy emphasis) |
 
-## v2 — observations, actions, rewards
+## Observation (v2)
 
-**What agents see (19 numbers):** negotiation vs navigation; three POI scores; what the other agent last suggested; which POI is locked in; own position; offset toward the target in navigation; short “lidar” distances to walls in four directions.
+Flat vector length **19** (same layout in both phases; values in roughly $[0,1]$ unless noted).
 
-**Actions:**
+| Block | Size | Content |
+|-------|------|---------|
+| Phase | 1 | $0$ = negotiation, $1$ = navigation |
+| POI scores | 3 | This agent’s preference score for POI $0,1,2$ (from evaluation below) |
+| Peer action | 4 | One-hot: no suggestion yet, or peer suggested POI $0,1,2$ |
+| Agreed POI | 3 | One-hot of locked-in POI (zeros until agreement) |
+| Self position | 2 | Row and column, normalised by grid extent |
+| Relative offset | 2 | Toward agreed POI in navigation (zeros in negotiation) |
+| Lidar | 4 | Normalised distance to nearest obstacle N, S, E, W |
 
-| Action | Meaning |
-|--------|---------|
-| 0–4 | Stay, up, down, left, right |
-| 5–7 | Suggest POI 0, 1, or 2 |
-| 8 | Accept the other agent’s last suggestion |
+## Actions (v2)
 
-In negotiation, **one agent moves at a time** (suggest or accept); the other is idle. In navigation, both move until both are at the POI.
+| ID | Meaning |
+|----|---------|
+| 0 | Stay |
+| 1 | Up |
+| 2 | Down |
+| 3 | Left |
+| 4 | Right |
+| 5 | Suggest POI 0 |
+| 6 | Suggest POI 1 |
+| 7 | Suggest POI 2 |
+| 8 | Accept peer’s last suggestion |
 
-**Rewards (v2 wrapper):** small bonuses for sensible negotiation moves; a larger shared bonus when they agree (scaled by how good that POI is for both); during navigation, shaping toward the goal, a small per-step cost, rewards when each agent arrives, and a final bonus when **everyone** has arrived.
+In **negotiation**, only the active agent may use actions **5–8**; the other is restricted to a no-op. In **navigation**, both use **0–4**.
+
+## Rewards (v2)
+
+| Phase | What happens | Reward idea |
+|-------|----------------|-------------|
+| Negotiation | Suggest your best POI, push back on bad offers, or accept a fair one | Small shaping bonuses |
+| Negotiation | Agreement reached | $+10 \times \text{quality}$ for everyone (quality from evaluation below) |
+| Navigation | Each step | Potential-based move toward target, minus small step cost |
+| Navigation | One agent reaches POI | $+10 \times \text{quality}$ for that agent |
+| Navigation | **Both** at POI | Extra $+50 \times \text{quality}$ for everyone |
+
+## Evaluation (example: Drone)
+
+[`thesslink_rl/models/drone.yaml`](thesslink_rl/models/drone.yaml) sets **privacy emphasis** $\alpha = 0.4$ and a **linear** energy model. For each POI $k \in \{0,1,2\}$ the code builds two raw signals from BFS on the grid: travel cost from the agent’s **current** cell (energy) and path length from **spawn** (privacy). Each is min–max normalised across the three POIs so they lie in $[0,1]$; the energy term is flipped so **lower cost ⇒ higher value**. With $\tilde{E}_k$ the normalised “goodness” of reachability and $\tilde{P}_k$ the normalised privacy,
+
+$$
+s_k \;=\; (1-\alpha)\,\tilde{E}_k + \alpha\,\tilde{P}_k\,.
+$$
+
+After agreement on POI $k^\star$, **negotiation quality** compares how good that choice is for **both** agents to the best possible common POI. Let $s_k^{(a)}$ be agent $a$’s score for POI $k$. The golden-mean vector is $g_k = \prod_a s_k^{(a)}$, and
+
+$$
+\text{quality} \;=\; \frac{g_{k^\star}}{\max_\ell g_\ell} \;\in\; [0,1]\,.
+$$
+
+That scalar scales the shared agreement and navigation bonuses in the reward table above.
+
+![Agent evaluation heatmaps: same map, different POI scores and preference fields for two agent types](plots/v2/eval_heatmaps.png)
 
 ## Plots and replays
-
-With Sacred results under `epymarl/results` (or pass `--results`):
 
 ```bash
 python visualize.py
 ```
 
-Outputs go to `plots/<env_tag>/` (e.g. `plots/v2/`). Comparison chart and example MAPPO / IQL replays:
+Outputs under `plots/<env_tag>/` (e.g. `plots/v2/`):
 
 ![Training curves — all algorithms](plots/v2/training_curves-all.png)
 
-| MAPPO | IQL |
-|-------|-----|
-| ![Episode replay — MAPPO](plots/v2/episode_replay-mappo.gif) | ![Episode replay — IQL](plots/v2/episode_replay-iql.gif) |
+**MAPPO** — episode replay
 
-## Quick Start
+![Episode replay — MAPPO](plots/v2/episode_replay-mappo.gif)
 
-### 1. Install
+**IQL** — episode replay
 
-```bash
-pip install -e .
-```
-
-### 2. EPyMARL
-
-```bash
-git clone https://github.com/uoe-agents/epymarl.git
-cd epymarl
-pip install -r requirements.txt
-```
-
-### 3. Run (v2)
-
-Copy env configs from this repo into EPyMARL:
-
-```bash
-cp ../epymarl_config/envs/*.yaml src/config/envs/
-```
-
-Examples:
-
-```bash
-python src/main.py --config=qmix --env-config=thesslink_v2
-python src/main.py --config=mappo --env-config=thesslink_v2 with common_reward=False
-python src/main.py --config=iql --env-config=thesslink_v2
-```
-
-Or register the gym env directly:
-
-```bash
-python src/main.py --config=qmix --env-config=gymma \
-  with env_args.time_limit=60 env_args.key="thesslink_rl:thesslink/GridNegotiation-v2"
-```
-
-## Agent configs
-
-YAML files in `thesslink_rl/models/` define each agent type, for example:
-
-```yaml
-name: Drone
-privacy_emphasis: 1.0
-energy_model: linear
-energy_exponential_gamma: 0.12
-```
+![Episode replay — IQL](plots/v2/episode_replay-iql.gif)
 
 ## Algorithms
 
