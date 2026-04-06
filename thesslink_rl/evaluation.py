@@ -1,20 +1,19 @@
 """Preference scoring: each agent rates every POI based on energy and privacy.
 
-Energy cost is dynamic — computed from the agent's current position to each
-POI using BFS (respecting obstacles).  The ``energy_model`` shapes the cost
-curve: ``linear`` means each step costs equally; ``exponential`` means cost
-per step grows **geometrically**: step ``i`` costs ``gamma**(i-1)`` (first step
-cost ``1``), so total for ``d`` steps is ``(gamma**d - 1) / (gamma - 1)`` when
-``gamma != 1``.  YAML: ``energy_exponential_gamma`` is ``gamma``.
-
-``energy_step`` multiplies the whole travel cost (e.g. gas vs electric units).
+Energy cost is dynamic — BFS steps ``d`` from the caller’s *current_pos* to each
+POI (see ``compute_poi_scores``).  ``linear``: cost ``energy_step * d``.
+``exponential``: total ``energy_step * (gamma**d - 1) / (gamma - 1)`` for
+``gamma != 1`` (geometric step weights ``1, gamma, gamma**2, ...`` times
+``energy_step``).  YAML: ``energy_exponential_gamma`` is ``gamma``;
+``energy_step`` scales the whole trip (e.g. gas vs electric).
 
 Privacy value is static — BFS distance from spawn to each POI, divided by the
 maximum BFS distance reachable from spawn on the map (not min-max across only
 the three POIs).
 
-Energy scores are **min-max normalised across the candidate POIs**; privacy is
-already in [0, 1].  Combined linearly: ``(1-p) · energy + p · privacy``.
+Raw costs are **min-max normalised across the three POIs** and flipped to an
+energy score; privacy is already in ``[0, 1]``.  Blend:
+``(1 - privacy_emphasis) * energy + privacy_emphasis * privacy``.
 """
 
 from __future__ import annotations
@@ -76,10 +75,9 @@ def bfs_distances(
 def _energy_cost(dist: float, cfg: AgentConfig) -> float:
     """Total energy to travel *dist* steps under the agent's energy model.
 
-    ``linear``:      cost = ``energy_step * dist``
-    ``exponential``: step ``i`` costs ``γ^{i-1}`` (first step = 1); total for
-    ``d`` steps is ``energy_step * (γ^d - 1) / (γ - 1)`` for ``γ != 1``, else
-    ``energy_step * d``.
+    ``linear``:      ``energy_step * dist``
+    ``exponential``: ``energy_step * (γ^d - 1) / (γ - 1)`` for ``γ != 1``,
+    else ``energy_step * dist`` (``γ ≤ 0`` or ``γ ≈ 1``).
     """
     scale = float(cfg.energy_step)
     if scale <= 0:
@@ -105,9 +103,8 @@ def _minmax(arr: np.ndarray, *, equal_fill: float = 0.5) -> np.ndarray:
     """Min-max normalise *arr* to [0, 1].
 
     When all values are equal (zero range), returns ``equal_fill`` for each
-    entry.  For **cost** (lower is better), use ``equal_fill=0`` before flipping.
-    For **distance** (higher is better for privacy), use ``equal_fill=1`` so
-    ties mean “all equally good,” not 0.5 which collapses the blend to 0.5.
+    entry.  Used for **travel costs** with ``equal_fill=0`` so ties map to
+    zero before ``1 - _minmax(...)`` turns them into “all equally cheap.”
     """
     lo, hi = float(arr.min()), float(arr.max())
     if hi - lo < 1e-12:
@@ -122,18 +119,18 @@ def compute_poi_scores(
     obstacle_map: np.ndarray,
     cfg: AgentConfig | None = None,
 ) -> np.ndarray:
-    """Return an array of shape (NUM_POIS,) with scores in [0, 1].
+    """Return shape ``(NUM_POIS,)`` scores in ``[0, 1]``.
 
-    1. Raw energy cost — BFS from *current_pos* to each POI, shaped by
-       ``cfg.energy_model``.  Lower cost → higher energy score.
-    2. Privacy value — BFS distance from *spawn* to each POI, scaled by the
-       maximum BFS distance from *spawn* to any reachable cell (absolute scale,
-       not min-max across only the three POIs).  Nearby meeting spots keep
-       moderate privacy; only very far POIs approach 1.
-    3. Energy — raw travel cost is **min-max normalised across the POIs**
-       (cheapest → 1, most expensive → 0).  Exponential step costs make long
-       paths expensive before that step.
-    4. Final score = ``(1-p) · energy_norm + p · privacy_value`` (linear blend).
+    *current_pos* is the origin for travel cost (heatmap and tooling vary it;
+    the v2 RL wrapper fixes it to *spawn* for the whole episode so preferences
+    stay static).
+
+    1. Raw travel cost from *current_pos* to each POI via ``_energy_cost``.
+    2. Privacy: spawn-to-POI BFS length divided by max spawn-to-cell BFS on the
+       map, clipped to ``[0, 1]`` (not min-max across POIs).
+    3. Energy score: min-max raw costs across the three POIs, then flip so
+       cheapest → ``1``.
+    4. ``(1 - α) * energy + α * privacy`` with ``α = cfg.privacy_emphasis``.
     """
     assert len(poi_positions) == NUM_POIS
 
