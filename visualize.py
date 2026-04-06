@@ -123,14 +123,14 @@ def plot_comparison_curves(
         smoothed = rolling_mean_expanding(values, window)
         ax0.plot(steps, smoothed, color=color, linewidth=2, label=algo.upper())
     ax0.set_xlabel("Timesteps")
-    ax0.set_title("Mean reward (common or Σ agents)", fontsize=12)
+    ax0.set_title("Mean test return (common or Σ agents)", fontsize=12)
     if has_reward:
         ax0.legend(fontsize=9)
     ax0.grid(True, alpha=0.3)
 
     panels = [
-        ("test_negotiation_agreed_mean", "Negotiate rate (%)", True),
-        ("test_negotiation_optimal_mean", "Optimal negotiate (%)", True),
+        ("test_negotiation_agreed_mean", "Agreement rate (%)", True),
+        ("test_negotiation_optimal_mean", "Golden-mean agreement (%)", True),
         ("test_battle_won_mean", "Reach rate (%)", True),
         ("test_ep_length_mean", "Episode length", False),
     ]
@@ -157,7 +157,11 @@ def plot_comparison_curves(
             ax.legend(fontsize=9)
         ax.grid(True, alpha=0.3)
 
-    fig.suptitle("Algorithm Comparison -- ThessLink Grid Negotiation", fontsize=14, y=1.02)
+    fig.suptitle(
+        f"Algorithm Comparison — ThessLink Grid Negotiation (env {ENV_TAG})",
+        fontsize=14,
+        y=1.02,
+    )
     plt.tight_layout()
 
     env_dir = _env_out_dir(ENV_TAG)
@@ -359,8 +363,8 @@ def print_summary(runs: dict[str, dict]):
     """Print a results table."""
     print()
     header = (
-        f"  {'ALG':<7} {'T_ENV':>8} {'RETURN':>8} {'NEG%':>7} "
-        f"{'OPT_N%':>8} {'REACH%':>8} {'EP_LEN':>8}"
+        f"  {'ALG':<7} {'T_ENV':>8} {'RETURN':>8} {'AGR%':>7} "
+        f"{'GM%':>8} {'REACH%':>8} {'EP_LEN':>8}"
     )
     print(header)
     print("  " + "-" * (len(header) - 2))

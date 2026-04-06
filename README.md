@@ -103,7 +103,7 @@ Outputs under `plots/<env_tag>/` (e.g. `plots/v2/`):
 
 ## Algorithms
 
-EPyMARL supports value-decomposition methods (QMIX, VDN, …), actor–critic and policy-gradient variants (MAPPO, IPPO, COMA, …), and independent learners (IQL, IA2C, …); use **`common_reward`** where the algorithm distinguishes team vs per-agent rewards.
+EPyMARL supports value-decomposition methods (QMIX, VDN, …), actor–critic and policy-gradient variants (MAPPO, IPPO, COMA, …), and independent learners (IQL, IA2C, …). **`train.sh`** passes **`common_reward=False`** for every algorithm so learning uses **per-agent** rewards from the v2 wrapper (you can override when invoking `main.py` yourself).
 
 ## Rendering (optional)
 

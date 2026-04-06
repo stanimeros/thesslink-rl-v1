@@ -331,15 +331,15 @@ def plot_training_curves(
     env_name: str | None = None,
     timesteps: list | None = None,
 ):
-    """Plot test metrics vs timesteps: common reward, negotiate/reach rates, ep length.
+    """Plot test metrics vs timesteps: return, agreement / golden-mean / reach rates, ep length.
 
     (Policy-gradient / TD *losses* are training objectives logged separately by EPyMARL,
     not environment returns — omit here to focus on eval behaviour.)
     """
     panels = [
-        ("common_reward", "Mean common reward", "#2ecc71"),
-        ("negotiate", "Negotiate rate (%)", "#9b59b6"),
-        ("negotiate_optimal", "Optimal negotiate (%)", "#8e44ad"),
+        ("common_reward", "Mean test return", "#2ecc71"),
+        ("negotiate", "Agreement rate (%)", "#9b59b6"),
+        ("negotiate_optimal", "Golden-mean agreement (%)", "#8e44ad"),
         ("reach", "Reach rate (%)", "#3498db"),
         ("ep_len", "Episode length", "#e67e22"),
     ]

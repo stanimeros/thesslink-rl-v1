@@ -64,7 +64,7 @@ show_status() {
         [ -f "$logf" ] || continue
         local tenv ret neg neg_opt reach eplen n n_perc no_perc r_perc
         tenv=$(grep -a 't_env:' "$logf" 2>/dev/null | tail -n1 | awk -F't_env: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        # common_reward=False (IQL, MAPPO): test_total_return_mean = mean episode sum of agents
+        # common_reward=False for all algos: per-agent rewards from the env (see README / v2 wrapper)
         ret=$(grep -a 'test_total_return_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_total_return_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
         if [ -z "$ret" ]; then
             ret=$(grep -a 'test_return_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_return_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
@@ -200,10 +200,8 @@ prepare_results_tree "after smoke — full multi-algo training"
 # ── Launch training ──────────────────────────────────────────────────────
 
 algo_extra_args() {
-    case "$1" in
-        iql|mappo) echo "common_reward=False" ;;
-        *)         echo "" ;;
-    esac
+    # Per-agent rewards for every algorithm (v2 shaping is asymmetric; team reward optional)
+    echo "common_reward=False"
 }
 
 log "Launching ${#ALGOS[@]} algorithm(s): ${ALGOS[*]}"
