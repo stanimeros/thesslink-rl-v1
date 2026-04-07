@@ -64,7 +64,7 @@ show_status() {
         [ -f "$logf" ] || continue
         local tenv ret neg neg_opt reach eplen n n_perc no_perc r_perc
         tenv=$(grep -a 't_env:' "$logf" 2>/dev/null | tail -n1 | awk -F't_env: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        # common_reward=False for all algos: per-agent rewards from the env (see README / v2 wrapper)
+        # Return columns: IQL/MAPPO use per-agent rewards; QMIX/VDN/COMA use aggregated (see algo_extra_args)
         ret=$(grep -a 'test_total_return_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_total_return_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
         if [ -z "$ret" ]; then
             ret=$(grep -a 'test_return_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_return_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
@@ -200,8 +200,13 @@ prepare_results_tree "after smoke — full multi-algo training"
 # ── Launch training ──────────────────────────────────────────────────────
 
 algo_extra_args() {
-    # Per-agent rewards for every algorithm (v2 shaping is asymmetric; team reward optional)
-    echo "common_reward=False"
+    # EPyMARL: only IQL + MAPPO support common_reward=False (per-agent rewards in the buffer).
+    # QMIX / VDN / COMA require common_reward=True (rewards aggregated in GymmaWrapper).
+    case "$1" in
+        iql|mappo) echo "common_reward=False" ;;
+        qmix|vdn|coma) echo "common_reward=True" ;;
+        *) echo "common_reward=True" ;;
+    esac
 }
 
 log "Launching ${#ALGOS[@]} algorithm(s): ${ALGOS[*]}"
