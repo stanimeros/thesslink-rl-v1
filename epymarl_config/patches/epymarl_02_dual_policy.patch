@@ -308,3 +308,8 @@ index 99f7f41..a9ef991 100644
  
              if k in self.preprocess:
                  new_k = self.preprocess[k][0]
+                 v = target[k][_slices]
+                 for transform in self.preprocess[k][1]:
+                     v = transform.transform(v)
+                 target[new_k][_slices] = v.view_as(target[new_k][_slices])
+
