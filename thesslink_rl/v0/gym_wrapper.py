@@ -41,7 +41,6 @@ class GridNegotiationGymEnv(gym.Env):
     """Gymnasium wrapper around GridNegotiationEnv for EPyMARL."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
-    # Only v3 uses EPyMARL dual MAC; parallel runner still calls GymmaWrapper.get_policy_branch.
     epymarl_dual_policy = False
 
     def __init__(

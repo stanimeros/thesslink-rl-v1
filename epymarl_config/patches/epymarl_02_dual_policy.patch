@@ -81,12 +81,13 @@ index c452bc6..c1b218b 100644
 +        return env_info
 +
 +    def get_policy_branch(self):
-+        """ThessLink v3+: 0 = negotiate, 1 = navigate; single-policy envs → 0."""
++        """0 = negotiate, 1 = navigate when gym env sets ``epymarl_dual_policy``; else 0."""
 +        u = self._env.unwrapped
-+        fn = getattr(u, "get_policy_branch", None)
-+        if callable(fn):
-+            return int(fn())
-+        return 0
++        if not getattr(u, "epymarl_dual_policy", False):
++            return 0
++        inner = getattr(u, "_env", None)
++        phase = getattr(inner, "phase", None) if inner is not None else None
++        return 1 if phase == "navigation" else 0
 diff --git a/src/modules/agents/__init__.py b/src/modules/agents/__init__.py
 index d159175..8085f05 100644
 --- a/src/modules/agents/__init__.py

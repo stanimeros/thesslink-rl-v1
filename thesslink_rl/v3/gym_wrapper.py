@@ -1,8 +1,8 @@
 """Gymnasium multi-agent wrapper for EPyMARL -- v3 (dual policy + potential-based shaping).
 
-Symbolic **18**-feature observation (no phase flag). Phase is exposed only via
-``get_policy_branch()`` for EPyMARL: **0** = negotiation, **1** = navigation.
-The learner uses two separate agent networks (negotiate vs navigate).
+Symbolic **18**-feature observation (no phase flag). Set ``epymarl_dual_policy``
+so EPyMARL uses two agent stacks; ``GymmaWrapper`` maps core ``phase`` to
+**0** = negotiation, **1** = navigation.
 
 Reward shaping matches v2 (negotiation bonuses, potential-based navigation).
 """
@@ -99,10 +99,6 @@ class GridNegotiationGymEnv(gym.Env):
         self._prev_potentials: Dict[str, float] = {}
         self._target_bfs: np.ndarray | None = None
         self._individual_arrived: Dict[str, bool] = {}
-
-    def get_policy_branch(self) -> int:
-        """Index for dual-policy training: 0 = negotiation, 1 = navigation."""
-        return 0 if self._env.phase == "negotiation" else 1
 
     def reset(
         self, seed: int | None = None, options: dict | None = None

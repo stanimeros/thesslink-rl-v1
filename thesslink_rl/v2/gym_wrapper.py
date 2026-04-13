@@ -66,6 +66,7 @@ class GridNegotiationGymEnv(gym.Env):
     """Gymnasium wrapper around GridNegotiationEnv (v2) for EPyMARL."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
+    epymarl_dual_policy = False
 
     def __init__(
         self,
@@ -112,10 +113,6 @@ class GridNegotiationGymEnv(gym.Env):
         self._prev_potentials: Dict[str, float] = {}
         self._target_bfs: np.ndarray | None = None
         self._individual_arrived: Dict[str, bool] = {}
-
-    def get_policy_branch(self) -> int:
-        """Index for dual-policy training: 0 = negotiation, 1 = navigation."""
-        return 0 if self._env.phase == "negotiation" else 1
 
     def reset(
         self, seed: int | None = None, options: dict | None = None
