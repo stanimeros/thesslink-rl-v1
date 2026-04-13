@@ -280,7 +280,7 @@ index 99f7f41..a9ef991 100644
                      mark_filled = False
                  _slices = slices
              elif k in self.data.episode_data:
-@@ -100,10 +100,22 @@ class EpisodeBatch:
+@@ -100,14 +100,27 @@ class EpisodeBatch:
                  raise KeyError("{} not found in transition or episode data".format(k))
  
              dtype = self.scheme[k].get("dtype", th.float32)
