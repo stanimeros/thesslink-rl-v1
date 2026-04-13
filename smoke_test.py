@@ -54,6 +54,7 @@ PLOTS_DIR = PROJECT / "plots"
 
 T_MAX = 4_000
 TEST_INTERVAL = 1_000
+LOG_INTERVAL = 1_000
 SAVE_MODEL_INTERVAL = 1_000
 
 SACRED_VERSION_MARKER = f"GridNegotiation-v{ENV_VERSION}"
@@ -87,14 +88,15 @@ def run_training() -> Path:
         "with",
         f"t_max={T_MAX}",
         f"test_interval={TEST_INTERVAL}",
+        f"log_interval={LOG_INTERVAL}",
         f"save_model=True",
         f"save_model_interval={SAVE_MODEL_INTERVAL}",
         f"test_nepisode=8",
     ]
     print(f"\n{'='*60}")
     print("STEP 1: Running short QMIX training")
-    print(f"  t_max={T_MAX}  test_interval={TEST_INTERVAL}")
-    print(f"  cmd: {' '.join(cmd[-7:])}")
+    print(f"  t_max={T_MAX}  test_interval={TEST_INTERVAL}  log_interval={LOG_INTERVAL}")
+    print(f"  cmd: {' '.join(cmd[cmd.index('with'):])}")
     print(f"{'='*60}\n")
 
     proc = subprocess.run(
