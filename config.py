@@ -1,8 +1,4 @@
 """Single source of truth for the active environment version.
-
-There is **no** default: set ``THESSLINK_ENV_VERSION`` (``"0"``..``"3"``) in the
-environment before importing this module. ``train.sh`` and ``visualize.py`` set it
-after you pick a version (CLI flag or prompt).
 """
 
 import os
