@@ -12,7 +12,8 @@
 #   logs/v<N>/<alg>.log   — nohup (per env version; v2 and v3 runs are kept separate)
 #   sacred/…/GridNegotiation-v<N>/…
 #   models/…/GridNegotiation-v<N>_…/…
-# Before/after smoke we only delete data for the *active* v<N>, not other versions.
+# Before smoke and again before full training: delete all of results/{sacred,models,logs}
+# (and legacy epymarl/results if present). Copy archived metrics back in after a run if needed.
 #
 set -euo pipefail
 
@@ -63,29 +64,16 @@ kill_training() {
     pkill -f "$EPYMARL_SRC/main.py" 2>/dev/null && log "Killed." || log "No processes found."
 }
 
-# Remove Sacred + model checkpoints + nohup logs only for env v<ver> (keep other versions).
 prepare_results_tree() {
     local phase="$1"
     local ver="${ENV_VERSION:-$THESSLINK_ENV_VERSION}"
-    log "Clearing results for env v${ver} only ($phase)..."
+    log "Wiping all training outputs ($phase): $RESULTS_DIR/{sacred,models,logs}"
+    rm -rf "$RESULTS_DIR_ABS/sacred" "$RESULTS_DIR_ABS/models" "$RESULTS_DIR_ABS/logs"
     mkdir -p "$RESULTS_DIR_ABS/sacred" "$RESULTS_DIR_ABS/models" "$LOGS_ROOT/v${ver}"
-
-    local sbase="$RESULTS_DIR_ABS/sacred"
-    if [[ -d "$sbase" ]]; then
-        while IFS= read -r -d '' d; do
-            rm -rf "$d"
-        done < <(find "$sbase" -type d -name "GridNegotiation-v${ver}" -print0 2>/dev/null)
+    if [[ -d "$SCRIPT_DIR/epymarl/results" ]]; then
+        log "Removing legacy epymarl/results/"
+        rm -rf "$SCRIPT_DIR/epymarl/results"
     fi
-
-    local mbase="$RESULTS_DIR_ABS/models"
-    if [[ -d "$mbase" ]]; then
-        while IFS= read -r -d '' d; do
-            rm -rf "$d"
-        done < <(find "$mbase" -type d -name "GridNegotiation-v${ver}_*" -print0 2>/dev/null)
-    fi
-
-    rm -rf "$LOGS_ROOT/v${ver}"
-    mkdir -p "$LOGS_ROOT/v${ver}"
 }
 
 _status_table_for_logs_dir() {
