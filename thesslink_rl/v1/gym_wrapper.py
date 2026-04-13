@@ -77,6 +77,10 @@ class GridNegotiationGymEnv(gym.Env):
         self._agreed_poi: int | None = None
         self._optimal_poi: int = 0
 
+    def get_policy_branch(self) -> int:
+        """Index for dual-policy training: 0 = negotiation, 1 = navigation."""
+        return 0 if self._env.phase == "negotiation" else 1
+
     def reset(
         self, seed: int | None = None, options: dict | None = None
     ) -> tuple[tuple[np.ndarray, ...], dict]:

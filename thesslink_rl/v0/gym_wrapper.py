@@ -86,6 +86,10 @@ class GridNegotiationGymEnv(gym.Env):
         self._prev_dist: Dict[str, float] = {}
         self._nav_steps: int = 0
 
+    def get_policy_branch(self) -> int:
+        """Index for dual-policy training: 0 = negotiation, 1 = navigation."""
+        return 0 if self._env.phase == "negotiation" else 1
+
     def _flatten_obs(self, obs_dict: Dict[str, np.ndarray]) -> np.ndarray:
         """Concatenate the unified obs dict into a flat vector of size OBS_FLAT_SIZE."""
         return np.concatenate([
