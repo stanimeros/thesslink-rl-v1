@@ -133,8 +133,8 @@ fi
 log "Activating virtualenv..."
 source "$VENV"
 
-log "Installing project requirements..."
-pip install -r requirements.txt --quiet
+log "Installing project requirements (PyTorch is large — first install may take many minutes)..."
+pip install -r requirements.txt
 
 # Same ENV_VERSION / ENV_CONFIG as smoke_test.py and visualize.py (via import config).
 eval "$(python3 <<'PY'
@@ -152,9 +152,9 @@ if [ ! -d "epymarl" ]; then
     log "Cloning EPyMARL..."
     git clone https://github.com/uoe-agents/epymarl.git
 
-    log "Installing dependencies..."
-    pip install -r epymarl/requirements.txt --quiet
-    pip install -e . --quiet
+    log "Installing EPyMARL dependencies..."
+    pip install -r epymarl/requirements.txt
+    pip install -e .
 fi
 
 log "Applying patches to EPyMARL..."
