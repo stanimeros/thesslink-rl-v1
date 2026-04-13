@@ -13,6 +13,8 @@ from typing import Any, Callable, Dict
 import numpy as np
 import yaml
 
+from .constants import PROJECT_ROOT, uses_per_agent_epymarl_rewards
+
 # --- Sacred metrics → best environment timestep ---
 
 
@@ -185,8 +187,7 @@ def load_epymarl_config_for_algo(algo: str, env_config_name: str, seed: int) -> 
 
     import torch as th
 
-    root = Path(__file__).resolve().parent.parent
-    epymarl_src = root / "epymarl" / "src"
+    epymarl_src = PROJECT_ROOT / "epymarl" / "src"
     if not epymarl_src.is_dir():
         raise FileNotFoundError(
             f"EPyMARL not found at {epymarl_src}. Clone it next to the project root.",
@@ -194,13 +195,13 @@ def load_epymarl_config_for_algo(algo: str, env_config_name: str, seed: int) -> 
     cfg_dir = epymarl_src / "config"
     with open(cfg_dir / "default.yaml") as f:
         config: dict = yaml.safe_load(f)
-    env_yaml = _resolve_env_config_yaml(root, epymarl_src, env_config_name)
+    env_yaml = _resolve_env_config_yaml(PROJECT_ROOT, epymarl_src, env_config_name)
     with open(env_yaml) as f:
         _recursive_dict_update(config, yaml.safe_load(f))
     with open(cfg_dir / "algs" / f"{algo}.yaml") as f:
         _recursive_dict_update(config, yaml.safe_load(f))
 
-    if algo in ("iql", "mappo"):
+    if uses_per_agent_epymarl_rewards(algo):
         config["common_reward"] = False
 
     config["seed"] = seed
@@ -270,8 +271,7 @@ def rollout_episode_frames_for_gif(
     """Load checkpoint and return frames compatible with ``visualization.replay_episode``."""
     import torch as th
 
-    root = Path(__file__).resolve().parent.parent
-    epymarl_src = root / "epymarl" / "src"
+    epymarl_src = PROJECT_ROOT / "epymarl" / "src"
     if not epymarl_src.is_dir():
         raise FileNotFoundError(
             f"EPyMARL not found at {epymarl_src}. Clone it next to the project root.",

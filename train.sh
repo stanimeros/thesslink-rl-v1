@@ -3,11 +3,10 @@
 # ThessLink RL -- Parallel training launcher
 #
 # Usage:
-#   ./train.sh --env 3          # all algorithms on ThessLink env v3 (dual-policy)
-#   ./train.sh --env 2 qmix mappo
-#   ./train.sh                  # prompts for env version [0-3] if stdin is a TTY
-#   ./train.sh --status         # live dashboard (watch -n 2; Ctrl+C to stop)
-#   ./train.sh --kill           # kill all running training processes
+#   ./train.sh --env 3    # IQL, QMIX, VDN, MAPPO, COMA on ThessLink v3
+#   ./train.sh # prompts for env version [0-3] if stdin is a TTY
+#   ./train.sh --status   # live dashboard (watch -n 2; Ctrl+C to stop)
+#   ./train.sh --kill     # kill all running training processes
 #
 # Results layout (epymarl/results/):
 #   logs/v<N>/<alg>.log   — nohup (per env version; v2 and v3 runs are kept separate)
@@ -28,7 +27,24 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$_script")" && pwd)"
 cd "$SCRIPT_DIR"
 
-ALL_ALGOS=(iql qmix vdn mappo coma)
+# ``TRAINING_ALGOS`` lives in ``thesslink_rl/constants.py``. Load that file alone so
+# this works before the venv exists (importing ``thesslink_rl`` would pull in gymnasium).
+_training_algos_words() {
+  python3 -c "
+import importlib.util
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+path = root / 'thesslink_rl' / 'constants.py'
+spec = importlib.util.spec_from_file_location('_thesslink_constants', path)
+mod = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(mod)
+print(' '.join(mod.TRAINING_ALGOS))
+" "$SCRIPT_DIR"
+}
+read -r -a ALL_ALGOS <<< "$(_training_algos_words)"
+
 RESULTS_DIR="epymarl/results"
 # Absolute base; per-run nohup logs live in logs/v<N>/ (set after ENV_VERSION is known).
 RESULTS_DIR_ABS="$SCRIPT_DIR/$RESULTS_DIR"
@@ -181,12 +197,11 @@ case "${THESSLINK_ENV_VERSION}" in
 esac
 export THESSLINK_ENV_VERSION
 
-# Algorithms to train: args or all
 if [[ $# -gt 0 ]]; then
-    ALGOS=("$@")
-else
-    ALGOS=("${ALL_ALGOS[@]}")
+    err "This script always trains all algorithms (${ALL_ALGOS[*]}). Remove extra arguments: $*"
+    exit 1
 fi
+ALGOS=("${ALL_ALGOS[@]}")
 
 # ── Setup ────────────────────────────────────────────────────────────────
 
@@ -294,13 +309,8 @@ mkdir -p "$LOGS_DIR"
 # ── Launch training ──────────────────────────────────────────────────────
 
 algo_extra_args() {
-    # EPyMARL: only IQL + MAPPO support common_reward=False (per-agent rewards in the buffer).
-    # QMIX / VDN / COMA require common_reward=True (rewards aggregated in GymmaWrapper).
-    case "$1" in
-        iql|mappo) echo "common_reward=False" ;;
-        qmix|vdn|coma) echo "common_reward=True" ;;
-        *) echo "common_reward=True" ;;
-    esac
+    # After venv: full package import is OK (gymnasium installed).
+    PYTHONPATH="$SCRIPT_DIR" python -c "from thesslink_rl.constants import epymarl_common_reward_cli_flag; import sys; print(epymarl_common_reward_cli_flag(sys.argv[1]))" "$1"
 }
 
 log "Launching ${#ALGOS[@]} algorithm(s): ${ALGOS[*]}"

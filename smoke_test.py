@@ -45,34 +45,29 @@ def _ensure_env_version_for_smoke() -> None:
 _ensure_env_version_for_smoke()
 
 from config import ENV_CONFIG, ENV_TAG, ENV_VERSION, GridNegotiationEnv
+from thesslink_rl.constants import (
+    AGENT_CONFIG_YAMLS,
+    EPYMARL_RESULTS,
+    EPYMARL_SRC,
+    PLOTS_DIR,
+    PROJECT_ROOT,
+    TRAINING_ALGOS,
+    epymarl_common_reward_cli_flag,
+)
 from thesslink_rl.visualization import _make_filename
-
-PROJECT = Path(__file__).resolve().parent
-EPYMARL_SRC = PROJECT / "epymarl" / "src"
-RESULTS_DIR = PROJECT / "epymarl" / "results"
-PLOTS_DIR = PROJECT / "plots"
 
 T_MAX = 1000
 LOG_INTERVAL = 50
 TEST_INTERVAL = 250
 SAVE_MODEL_INTERVAL = 500
 
-# Same set and reward convention as train.sh (algo_extra_args).
-SMOKE_ALGOS = ("iql", "qmix", "vdn", "mappo", "coma")
-
 SACRED_VERSION_MARKER = f"GridNegotiation-v{ENV_VERSION}"
-
-
-def _common_reward_arg(algo: str) -> str:
-    if algo in ("iql", "mappo"):
-        return "common_reward=False"
-    return "common_reward=True"
 
 
 def _latest_sacred_run_for_smoke_algo(algo: str) -> Path:
     """Newest Sacred run for *algo* and current env version."""
     algo_l = algo.lower()
-    sacred_algo = RESULTS_DIR / "sacred" / algo_l
+    sacred_algo = EPYMARL_RESULTS / "sacred" / algo_l
     if not sacred_algo.is_dir():
         raise FileNotFoundError(f"No Sacred tree at {sacred_algo}")
     candidates = [
@@ -100,12 +95,12 @@ def run_training(algo: str) -> Path:
         f"save_model=True",
         f"save_model_interval={SAVE_MODEL_INTERVAL}",
         f"test_nepisode=8",
-        _common_reward_arg(algo),
+        epymarl_common_reward_cli_flag(algo),
     ]
     print(f"\n{'='*60}")
     print(f"STEP 1 — Smoke training: {algo.upper()}")
     print(f"  t_max={T_MAX}  test_interval={TEST_INTERVAL}  log_interval={LOG_INTERVAL}")
-    print(f"  {_common_reward_arg(algo)}")
+    print(f"  {epymarl_common_reward_cli_flag(algo)}")
     print(f"  cmd: {' '.join(cmd[cmd.index('with'):])}")
     print(f"{'='*60}\n")
 
@@ -205,8 +200,6 @@ def generate_plots(metrics: dict, algo: str):
     plot_training_curves(
         stats,
         window=min(5, max(1, len(gm_vals))),
-        save_path=True,
-        show=False,
         algo=algo,
         env_name=ENV_TAG,
         timesteps=steps if steps else None,
@@ -214,9 +207,8 @@ def generate_plots(metrics: dict, algo: str):
     print(f"         -> plots/{ENV_TAG}/{fname}")
 
     # --- 3b. Evaluation heatmaps ---
-    models_dir = PROJECT / "thesslink_rl" / "models"
-    cfg_0 = AgentConfig.from_yaml(str(models_dir / "human.yaml"))
-    cfg_1 = AgentConfig.from_yaml(str(models_dir / "taxi.yaml"))
+    cfg_0 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "human.yaml"))
+    cfg_1 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "taxi.yaml"))
     agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
 
     env = GridNegotiationEnv(agent_configs=agent_configs, seed=42)
@@ -233,9 +225,7 @@ def generate_plots(metrics: dict, algo: str):
 
     fname = _make_filename("eval_heatmaps", "png", algo)
     print(f"  [2/3] Evaluation heatmaps...")
-    render_eval_heatmaps(env, agent_configs,
-                         save_path=True, show=False, algo=algo,
-                         env_name=ENV_TAG)
+    render_eval_heatmaps(env, agent_configs, algo=algo, env_name=ENV_TAG)
     print(f"         -> plots/{ENV_TAG}/{fname}")
 
     # --- 3c. Episode replay GIF (random-action demo, same env/map) ---
@@ -268,19 +258,23 @@ def generate_plots(metrics: dict, algo: str):
 
     fname = _make_filename("episode_replay", "gif", algo)
     print(f"  [3/3] Episode replay GIF...")
-    replay_episode(frames, env, agent_configs=agent_configs,
-                   save_path=True, show=False, algo=algo,
-                   env_name=ENV_TAG)
+    replay_episode(
+        frames,
+        env,
+        agent_configs=agent_configs,
+        algo=algo,
+        env_name=ENV_TAG,
+    )
     print(f"         -> plots/{ENV_TAG}/{fname}")
 
 
 def main():
     print("ThessLink RL — Smoke Test")
-    print(f"Project: {PROJECT}")
+    print(f"Project: {PROJECT_ROOT}")
     print(f"Environment version: v{ENV_VERSION} (env-config={ENV_CONFIG})")
-    print(f"Algorithms: {', '.join(a.upper() for a in SMOKE_ALGOS)}")
+    print(f"Algorithms: {', '.join(a.upper() for a in TRAINING_ALGOS)}")
 
-    for algo in SMOKE_ALGOS:
+    for algo in TRAINING_ALGOS:
         run_dir = run_training(algo)
         metrics = load_sacred_metrics(run_dir)
         print_results_table(metrics, algo=algo)
@@ -290,16 +284,16 @@ def main():
     print(f"\n{'='*60}")
     print("SMOKE TEST COMPLETE")
     print(f"{'='*60}")
-    print(f"\nResults saved in: {RESULTS_DIR}")
+    print(f"\nResults saved in: {EPYMARL_RESULTS}")
     print(f"Plots saved in:   {env_plots}")
-    for algo in SMOKE_ALGOS:
+    for algo in TRAINING_ALGOS:
         print(f"  [{algo}] {_make_filename('training_curves', 'png', algo)}")
         print(f"  [{algo}] {_make_filename('eval_heatmaps', 'png', algo)}")
         print(f"  [{algo}] {_make_filename('episode_replay', 'gif', algo)}")
 
-    models_root = RESULTS_DIR / "models"
+    models_root = EPYMARL_RESULTS / "models"
     if models_root.exists():
-        for algo in SMOKE_ALGOS:
+        for algo in TRAINING_ALGOS:
             needle = f"/{algo}_"
             th_files = [
                 p for p in models_root.rglob("*.th")

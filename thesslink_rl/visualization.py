@@ -2,6 +2,9 @@
 
 All scoring and heatmap computation is delegated to ``evaluation.py``.
 This module only handles rendering.
+
+Outputs go under ``thesslink_rl.constants.PLOTS_DIR`` (``<repo>/plots``), not the process CWD.
+File-oriented helpers default to ``show=False`` (non-interactive / headless).
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .constants import GRID_SIZE, NUM_POIS
+from .constants import GRID_SIZE, NUM_POIS, PLOTS_DIR
 
 ACT_SUGGEST_BASE = 5
 NUM_SUGGEST_ACTIONS = NUM_POIS
@@ -68,7 +71,7 @@ def _poi_colors(scores: np.ndarray | None) -> list[str]:
         colors[poi_idx] = POI_RANK_COLORS[min(rank, n - 1)]
     return colors
 
-OUT_DIR = Path("plots")
+OUT_DIR = PLOTS_DIR
 
 
 def _env_out_dir(env_name: str | None) -> Path:
@@ -98,7 +101,7 @@ def render_grid(
     env: GridNegotiationEnv,
     title: str = "",
     ax: plt.Axes | None = None,
-    show: bool = True,
+    show: bool = False,
     save_path: str | None = None,
     algo: str | None = None,
     env_name: str | None = None,
@@ -263,7 +266,7 @@ def render_eval_heatmaps(
     env: GridNegotiationEnv,
     agent_configs: Dict[str, AgentConfig],
     title: str = "",
-    show: bool = True,
+    show: bool = False,
     save_path: str | None = None,
     algo: str | None = None,
     env_name: str | None = None,
@@ -296,8 +299,7 @@ def render_eval_heatmaps(
         )
 
     merged_scores = np.mean(list(all_scores.values()), axis=0)
-    render_grid(env, title="Initial State", ax=ax_mid, show=False,
-                poi_scores=merged_scores)
+    render_grid(env, title="Initial State", ax=ax_mid, poi_scores=merged_scores)
 
     plt.tight_layout()
     fig.suptitle(title or "Agent Evaluation Heatmaps", fontsize=13, y=1.02)
@@ -339,7 +341,7 @@ def plot_training_curves(
     stats: Dict[str, list],
     window: int = 20,
     save_path: str | bool = True,
-    show: bool = True,
+    show: bool = False,
     algo: str | None = None,
     env_name: str | None = None,
     timesteps: list | None = None,
@@ -408,7 +410,7 @@ def replay_episode(
     save_path: str | bool = True,
     neg_interval_ms: int = 1200,
     nav_interval_ms: int = 250,
-    show: bool = True,
+    show: bool = False,
     algo: str | None = None,
     env_name: str | None = None,
 ):
@@ -481,8 +483,7 @@ def replay_episode(
         title = f"Step {frame['timestep']}"
         if action_desc:
             title += f"\n{action_desc}"
-        render_grid(env, title=title, ax=ax_mid,
-                    show=False, poi_scores=merged_scores)
+        render_grid(env, title=title, ax=ax_mid, poi_scores=merged_scores)
 
         fig.subplots_adjust(left=0.02, right=0.98, top=0.90, bottom=0.02,
                             wspace=0.15)

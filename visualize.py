@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
-"""Visualize training results from Sacred metrics.
+"""Visualize training results from Sacred metrics under ``epymarl/results/``.
 
-With **no** Sacred results (or no matching ``--algo``): writes **3** placeholder
-files only — ``training_curves-example.png``, ``eval_heatmaps-example.png``,
+With **no** Sacred results for the chosen env: writes **3** placeholder files —
+``training_curves-example.png``, ``eval_heatmaps-example.png``,
 ``episode_replay-example.gif``.
 
-With results: ``training_curves-all.png`` (comparison), **one** shared
-``eval_heatmaps.png``, plus per-algorithm training curves and episode GIFs from
-the **best** saved checkpoint under ``results/models`` (random rollout only if
-missing checkpoint or load fails).
+With results: ``training_curves-all.png`` (all algorithms), **one** shared
+``eval_heatmaps.png``, per-algorithm training curves, and episode GIFs from the
+**best** checkpoint under ``epymarl/results/models``.
 
 Usage:
-    python visualize.py --env 3                    # required unless stdin is a TTY (then prompted)
-    python visualize.py --env 2 --algo qmix mappo
-    python visualize.py --env 3 --results epymarl/results
-    python visualize.py --env 3 --models /path/to/models
+    python visualize.py --env 3
 """
 
 from __future__ import annotations
@@ -38,6 +34,7 @@ from thesslink_rl.checkpoints import (
     test_reward_series,
 )
 from thesslink_rl.evaluation import AgentConfig, compute_poi_scores
+from thesslink_rl.constants import AGENT_CONFIG_YAMLS, EPYMARL_RESULTS
 from thesslink_rl.visualization import (
     _env_out_dir,
     _make_filename,
@@ -49,7 +46,7 @@ from thesslink_rl.visualization import (
     rolling_mean_expanding,
 )
 
-PROJECT = Path(__file__).resolve().parent
+CURVE_SMOOTHING_WINDOW = 10
 SEED = 105
 EXAMPLE_TAG = "example"
 
@@ -199,8 +196,9 @@ def plot_per_algo_curves(runs: dict[str, dict], window: int = 10):
 
         w = min(window, max(1, len(gm)))
         plot_training_curves(
-            stats, window=w,
-            save_path=True, show=False, algo=algo,
+            stats,
+            window=w,
+            algo=algo,
             env_name=ENV_TAG,
             timesteps=steps if steps else None,
         )
@@ -212,14 +210,12 @@ def generate_example_plots() -> None:
     """Exactly three files when no training metrics: one demo per plot type."""
     from config import ENV_TAG, GridNegotiationEnv
 
-    models_dir = PROJECT / "thesslink_rl" / "models"
-    cfg_0 = AgentConfig.from_yaml(str(models_dir / "human.yaml"))
-    cfg_1 = AgentConfig.from_yaml(str(models_dir / "taxi.yaml"))
+    cfg_0 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "human.yaml"))
+    cfg_1 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "taxi.yaml"))
     agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
     env = GridNegotiationEnv(agent_configs=agent_configs, seed=SEED)
     env.reset(seed=SEED)
     _sync_poi_scores(env, agent_configs)
-    agents = env.possible_agents
 
     n = 24
     steps = [i * 50_000 for i in range(1, n + 1)]
@@ -235,8 +231,6 @@ def generate_example_plots() -> None:
     plot_training_curves(
         stats,
         window=min(10, max(1, n)),
-        save_path=True,
-        show=False,
         algo=EXAMPLE_TAG,
         env_name=ENV_TAG,
         timesteps=steps,
@@ -245,8 +239,9 @@ def generate_example_plots() -> None:
 
     print(f"[2/3] Example eval heatmaps ({_make_filename('eval_heatmaps', 'png', EXAMPLE_TAG)})")
     render_eval_heatmaps(
-        env, agent_configs,
-        save_path=True, show=False, algo=EXAMPLE_TAG,
+        env,
+        agent_configs,
+        algo=EXAMPLE_TAG,
         env_name=ENV_TAG,
         title="Example — add epymarl/results to plot real runs",
     )
@@ -257,8 +252,10 @@ def generate_example_plots() -> None:
     frames = _random_episode_frames(env)
     print(f"[3/3] Example episode replay ({_make_filename('episode_replay', 'gif', EXAMPLE_TAG)})")
     replay_episode(
-        frames, env, agent_configs=agent_configs,
-        save_path=True, show=False, algo=EXAMPLE_TAG,
+        frames,
+        env,
+        agent_configs=agent_configs,
+        algo=EXAMPLE_TAG,
         env_name=ENV_TAG,
     )
     print(f"  -> plots/{ENV_TAG}/{_make_filename('episode_replay', 'gif', EXAMPLE_TAG)}")
@@ -298,9 +295,8 @@ def generate_heatmaps_and_replays(
     """
     from config import ENV_CONFIG, ENV_TAG, ENV_VERSION, GridNegotiationEnv
 
-    models_dir = PROJECT / "thesslink_rl" / "models"
-    cfg_0 = AgentConfig.from_yaml(str(models_dir / "human.yaml"))
-    cfg_1 = AgentConfig.from_yaml(str(models_dir / "taxi.yaml"))
+    cfg_0 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "human.yaml"))
+    cfg_1 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "taxi.yaml"))
     agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
 
     env = GridNegotiationEnv(agent_configs=agent_configs, seed=SEED)
@@ -308,11 +304,7 @@ def generate_heatmaps_and_replays(
     env.reset(seed=SEED)
     _sync_poi_scores(env, agent_configs)
 
-    render_eval_heatmaps(
-        env, agent_configs,
-        save_path=True, show=False, algo=None,
-        env_name=ENV_TAG,
-    )
+    render_eval_heatmaps(env, agent_configs, algo=None, env_name=ENV_TAG)
     print(f"  -> plots/{ENV_TAG}/{_make_filename('eval_heatmaps', 'png', None)}")
 
     for raw_algo in algos:
@@ -364,9 +356,13 @@ def generate_heatmaps_and_replays(
 
         if frames is not None:
             fname = _make_filename("episode_replay", "gif", algo)
-            replay_episode(frames, env, agent_configs=agent_configs,
-                           save_path=True, show=False, algo=algo,
-                           env_name=ENV_TAG)
+            replay_episode(
+                frames,
+                env,
+                agent_configs=agent_configs,
+                algo=algo,
+                env_name=ENV_TAG,
+            )
             print(f"  -> plots/{ENV_TAG}/{fname}")
 
 
@@ -432,18 +428,6 @@ def main():
         metavar="N",
         help="ThessLink env version (0–3). If omitted, prompted when stdin is a TTY.",
     )
-    parser.add_argument("--algo", nargs="+", default=None,
-                        help="Algorithms to visualize (default: all found)")
-    parser.add_argument("--results", type=str, default="epymarl/results",
-                        help="Path to results directory")
-    parser.add_argument(
-        "--models",
-        type=str,
-        default=None,
-        help="Checkpoint directory (agent.th trees). Default: <results>/models",
-    )
-    parser.add_argument("--window", type=int, default=10,
-                        help="Smoothing window for curves")
     args = parser.parse_args()
 
     v = _resolve_env_version(args.env)
@@ -452,12 +436,7 @@ def main():
 
     print(f"Using environment: {ENV_TAG} (ENV_VERSION={ENV_VERSION})")
 
-    results_dir = Path(args.results)
-    runs = discover_runs(results_dir)
-    if args.algo:
-        wanted = {a.lower() for a in args.algo}
-        runs = {k: v for k, v in runs.items() if k in wanted}
-
+    runs = discover_runs(EPYMARL_RESULTS)
     if not runs:
         print(
             "No Sacred metrics for this selection — writing exactly 3 example files "
@@ -469,28 +448,26 @@ def main():
 
     algos = sorted(runs.keys())
     print(f"Found {len(algos)} algorithm(s): {', '.join(a.upper() for a in algos)}")
-    models_root = Path(args.models) if args.models else None
-    mr_display = models_root or (results_dir / "models")
     print(
         "Output: training_curves-all.png, eval_heatmaps.png, "
         "training_curves-<alg>.png per algorithm, "
-        f"episode_replay-<alg>.gif per algorithm when checkpoints exist under {mr_display}.\n",
+        f"episode_replay-<alg>.gif per algorithm when checkpoints exist under {EPYMARL_RESULTS / 'models'}.\n",
     )
 
     print_summary(runs)
 
     print("[1/3] Comparison — training_curves-all.png")
-    plot_comparison_curves(runs, window=args.window)
+    plot_comparison_curves(runs, window=CURVE_SMOOTHING_WINDOW)
 
     print("[2/3] Per-algorithm training curves (one PNG per algo)...")
-    plot_per_algo_curves(runs, window=args.window)
+    plot_per_algo_curves(runs, window=CURVE_SMOOTHING_WINDOW)
 
     print("[3/3] Eval heatmap (one) + per-algorithm episode GIFs (best checkpoint)...")
     generate_heatmaps_and_replays(
         algos,
-        results_dir=results_dir,
+        results_dir=EPYMARL_RESULTS,
         runs=runs,
-        models_root=models_root,
+        models_root=None,
     )
 
     print(f"Done! Plots saved to plots/{ENV_TAG}/")
