@@ -313,7 +313,7 @@ for alg in "${ALGOS[@]}"; do
         log_interval=20000 \
         test_interval=50000 \
         save_model_interval=400000 \
-        t_max=2000000 \
+        t_max=1000000 \
         $extra \
         > "$logfile" 2>&1 &
     PIDS+=($!)
