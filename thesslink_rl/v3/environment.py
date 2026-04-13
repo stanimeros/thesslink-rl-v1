@@ -1,7 +1,10 @@
-"""Core grid environment v2: symbolic observations with GPS signal.
+"""Core grid environment v3: symbolic observations with GPS signal (dual-policy).
 
-Observation vector (size 19):
-  phase_flag    (1)  0.0 = Negotiation, 1.0 = Navigation
+Same dynamics and layout as v2, but **no phase flag** in the observation. Training
+uses separate networks for negotiation vs navigation; the gym wrapper exposes
+``get_policy_branch()`` (0 = negotiate, 1 = navigate) for the learner.
+
+Observation vector (size 18):
   self_scores   (3)  Agent's preference scores for the 3 POIs
   peer_action   (4)  One-hot: [No action, Suggest 0, Suggest 1, Suggest 2]
   agreed_poi    (3)  One-hot: which POI was agreed (all 0 during negotiation)
@@ -20,7 +23,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
-ENV_TAG = "v2"
+ENV_TAG = "v3"
 GRID_SIZE = 10
 NUM_OBSTACLES = 10
 NUM_POIS = 3
@@ -36,21 +39,19 @@ ACTION_DIM = NUM_MOVE_ACTIONS + NUM_SUGGEST_ACTIONS + 1  # 9
 
 PEER_ACTION_DIM = NUM_SUGGEST_ACTIONS + 1  # 4: [no_action, suggest_0, suggest_1, suggest_2]
 AGREED_POI_DIM = NUM_POIS  # 3
-PHASE_DIM = 1
 SELF_SCORES_DIM = NUM_POIS  # 3
 SELF_POS_DIM = 2
 RELATIVE_POS_DIM = 2  # (target - self) normalised
 LIDAR_DIM = 4  # N, S, E, W
 
 OBS_FLAT_SIZE = (
-    PHASE_DIM           # 1
-    + SELF_SCORES_DIM   # 3
+    SELF_SCORES_DIM   # 3
     + PEER_ACTION_DIM   # 4
     + AGREED_POI_DIM    # 3
     + SELF_POS_DIM      # 2
     + RELATIVE_POS_DIM  # 2
     + LIDAR_DIM         # 4
-)  # = 19
+)  # = 18
 
 
 class GridNegotiationEnv:
@@ -237,11 +238,7 @@ class GridNegotiationEnv:
         return distances
 
     def _get_obs(self, agent: str) -> np.ndarray:
-        """Symbolic observation vector of size OBS_FLAT_SIZE (19)."""
-        phase_flag = np.array(
-            [1.0 if self.phase == "navigation" else 0.0], dtype=np.float32,
-        )
-
+        """Symbolic observation vector of size OBS_FLAT_SIZE (18), no phase flag."""
         own_scores = self.poi_scores.get(
             agent, np.zeros(NUM_POIS, dtype=np.float32),
         )
@@ -270,7 +267,6 @@ class GridNegotiationEnv:
         lidar = self._lidar(r, c)
 
         return np.concatenate([
-            phase_flag,
             own_scores,
             peer_action_onehot,
             agreed_onehot,

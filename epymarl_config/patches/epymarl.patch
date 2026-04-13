@@ -1,3 +1,20 @@
+diff --git a/src/controllers/__init__.py b/src/controllers/__init__.py
+index e55344f..12e1768 100644
+--- a/src/controllers/__init__.py
++++ b/src/controllers/__init__.py
+@@ -1,9 +1,11 @@
+ REGISTRY = {}
+ 
+ from .basic_controller import BasicMAC
++from .dual_basic_controller import DualBasicMAC
+ from .non_shared_controller import NonSharedMAC
+ from .maddpg_controller import MADDPGMAC
+ 
+ REGISTRY["basic_mac"] = BasicMAC
++REGISTRY["dual_basic_mac"] = DualBasicMAC
+ REGISTRY["non_shared_mac"] = NonSharedMAC
+ REGISTRY["maddpg_mac"] = MADDPGMAC
+\ No newline at end of file
 diff --git a/src/envs/__init__.py b/src/envs/__init__.py
 index 55fec42..b60277c 100644
 --- a/src/envs/__init__.py
@@ -23,7 +40,7 @@ index 55fec42..b60277c 100644
  
  if sys.platform == "linux":
 diff --git a/src/envs/gymma.py b/src/envs/gymma.py
-index aeba61f..c452bc6 100644
+index aeba61f..c1b218b 100644
 --- a/src/envs/gymma.py
 +++ b/src/envs/gymma.py
 @@ -120,6 +120,8 @@ class GymmaWrapper(MultiAgentEnv):
@@ -44,3 +61,170 @@ index aeba61f..c452bc6 100644
          valid = flatdim(self._env.action_space[agent_id]) * [1]
          invalid = [0] * (self.longest_action_space.n - len(valid))
          return valid + invalid
+@@ -157,3 +161,13 @@ class GymmaWrapper(MultiAgentEnv):
+ 
+     def get_stats(self):
+         return {}
++
++    def get_env_info(self):
++        env_info = super().get_env_info()
++        if hasattr(self._env.unwrapped, "get_policy_branch"):
++            env_info["use_dual_policy"] = True
++        return env_info
++
++    def get_policy_branch(self):
++        """0 = negotiation, 1 = navigation (ThessLink v3+)."""
++        return int(self._env.unwrapped.get_policy_branch())
+diff --git a/src/modules/agents/__init__.py b/src/modules/agents/__init__.py
+index d159175..8085f05 100644
+--- a/src/modules/agents/__init__.py
++++ b/src/modules/agents/__init__.py
+@@ -1,9 +1,11 @@
+ from .rnn_agent import RNNAgent
+ from .rnn_ns_agent import RNNNSAgent
+ from .rnn_feature_agent import RNNFeatureAgent
++from .dual_rnn_agent import DualRNNAgent
+ 
+ 
+ REGISTRY = {}
+ REGISTRY["rnn"] = RNNAgent
+ REGISTRY["rnn_ns"] = RNNNSAgent
+ REGISTRY["rnn_feat"] = RNNFeatureAgent
++REGISTRY["dual_rnn"] = DualRNNAgent
+diff --git a/src/run.py b/src/run.py
+index 41e0a38..3af4f8c 100644
+--- a/src/run.py
++++ b/src/run.py
+@@ -122,6 +122,10 @@ def run_sequential(args, logger):
+         scheme["reward"] = {"vshape": (1,)}
+     else:
+         scheme["reward"] = {"vshape": (args.n_agents,)}
++    if env_info.get("use_dual_policy"):
++        scheme["policy_branch"] = {"vshape": (1,), "dtype": th.long}
++        args.mac = "dual_basic_mac"
++        args.agent = "dual_rnn"
+     groups = {"agents": args.n_agents}
+     preprocess = {"actions": ("actions_onehot", [OneHot(out_dim=args.n_actions)])}
+ 
+diff --git a/src/runners/episode_runner.py b/src/runners/episode_runner.py
+index c84af50..48d7701 100644
+--- a/src/runners/episode_runner.py
++++ b/src/runners/episode_runner.py
+@@ -50,6 +50,7 @@ class EpisodeRunner:
+             device=self.args.device,
+         )
+         self.mac = mac
++        self.scheme = scheme
+ 
+     def get_env_info(self):
+         return self.env.get_env_info()
+@@ -81,6 +82,10 @@ class EpisodeRunner:
+                 "avail_actions": [self.env.get_avail_actions()],
+                 "obs": [self.env.get_obs()],
+             }
++            if self.scheme.get("policy_branch"):
++                pre_transition_data["policy_branch"] = [
++                    [self.env.get_policy_branch()]
++                ]
+ 
+             self.batch.update(pre_transition_data, ts=self.t)
+ 
+@@ -114,6 +119,8 @@ class EpisodeRunner:
+             "avail_actions": [self.env.get_avail_actions()],
+             "obs": [self.env.get_obs()],
+         }
++        if self.scheme.get("policy_branch"):
++            last_data["policy_branch"] = [[self.env.get_policy_branch()]]
+         if test_mode and self.args.render:
+             print(f"Episode return: {episode_return}")
+         self.batch.update(last_data, ts=self.t)
+diff --git a/src/runners/parallel_runner.py b/src/runners/parallel_runner.py
+index 5962c60..a211f0e 100644
+--- a/src/runners/parallel_runner.py
++++ b/src/runners/parallel_runner.py
+@@ -94,12 +94,16 @@ class ParallelRunner:
+             parent_conn.send(("reset", None))
+ 
+         pre_transition_data = {"state": [], "avail_actions": [], "obs": []}
++        if "policy_branch" in self.scheme:
++            pre_transition_data["policy_branch"] = []
+         # Get the obs, state and avail_actions back
+         for parent_conn in self.parent_conns:
+             data = parent_conn.recv()
+             pre_transition_data["state"].append(data["state"])
+             pre_transition_data["avail_actions"].append(data["avail_actions"])
+             pre_transition_data["obs"].append(data["obs"])
++            if "policy_branch" in pre_transition_data:
++                pre_transition_data["policy_branch"].append([data["policy_branch"]])
+ 
+         self.batch.update(pre_transition_data, ts=0)
+ 
+@@ -166,6 +170,8 @@ class ParallelRunner:
+             post_transition_data = {"reward": [], "terminated": []}
+             # Data for the next step we will insert in order to select an action
+             pre_transition_data = {"state": [], "avail_actions": [], "obs": []}
++            if "policy_branch" in self.scheme:
++                pre_transition_data["policy_branch"] = []
+ 
+             # Receive data back for each unterminated env
+             for idx, parent_conn in enumerate(self.parent_conns):
+@@ -193,6 +199,10 @@ class ParallelRunner:
+                     pre_transition_data["state"].append(data["state"])
+                     pre_transition_data["avail_actions"].append(data["avail_actions"])
+                     pre_transition_data["obs"].append(data["obs"])
++                    if "policy_branch" in pre_transition_data:
++                        pre_transition_data["policy_branch"].append(
++                            [data["policy_branch"]]
++                        )
+ 
+             # Add post_transiton data into the batch
+             self.batch.update(
+@@ -299,27 +309,29 @@ def env_worker(remote, env_fn):
+             state = env.get_state()
+             avail_actions = env.get_avail_actions()
+             obs = env.get_obs()
+-            remote.send(
+-                {
+-                    # Data for the next timestep needed to pick an action
+-                    "state": state,
+-                    "avail_actions": avail_actions,
+-                    "obs": obs,
+-                    # Rest of the data for the current timestep
+-                    "reward": reward,
+-                    "terminated": terminated,
+-                    "info": env_info,
+-                }
+-            )
++            payload = {
++                # Data for the next timestep needed to pick an action
++                "state": state,
++                "avail_actions": avail_actions,
++                "obs": obs,
++                # Rest of the data for the current timestep
++                "reward": reward,
++                "terminated": terminated,
++                "info": env_info,
++            }
++            if hasattr(env, "get_policy_branch"):
++                payload["policy_branch"] = env.get_policy_branch()
++            remote.send(payload)
+         elif cmd == "reset":
+             env.reset()
+-            remote.send(
+-                {
+-                    "state": env.get_state(),
+-                    "avail_actions": env.get_avail_actions(),
+-                    "obs": env.get_obs(),
+-                }
+-            )
++            reset_payload = {
++                "state": env.get_state(),
++                "avail_actions": env.get_avail_actions(),
++                "obs": env.get_obs(),
++            }
++            if hasattr(env, "get_policy_branch"):
++                reset_payload["policy_branch"] = env.get_policy_branch()
++            remote.send(reset_payload)
+         elif cmd == "close":
+             env.close()
+             remote.close()

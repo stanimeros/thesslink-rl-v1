@@ -1,24 +1,10 @@
-"""Gymnasium multi-agent wrapper for EPyMARL -- v2 (potential-based reward shaping).
+"""Gymnasium multi-agent wrapper for EPyMARL -- v3 (dual policy + potential-based shaping).
 
-Symbolic 19-feature observation vector with GPS signal.
+Symbolic **18**-feature observation (no phase flag). Phase is exposed only via
+``get_policy_branch()`` for EPyMARL: **0** = negotiation, **1** = navigation.
+The learner uses two separate agent networks (negotiate vs navigate).
 
-Negotiation shaping (individual per-agent rewards):
-  - Optimal suggestion   (+0.10): agent suggests the POI with its highest score
-  - Persistence bonus    (+0.05): agent re-suggests its own good POI when peer's
-                                  offer scores poorly for this agent
-  - Flexibility / accept (+0.10): agent accepts a peer offer that is fair
-                                  (own score >= 0.6)
-
-Negotiation common reward:
-  - Agreement bonus  (+10.0 * quality): when both agents lock in, where
-    quality = score_a * score_b (golden mean)
-
-Navigation shaping:
-  - Potential-based shaping: gamma * Phi(s') - Phi(s) each step, where
-    Phi(s) = -BFS_distance(agent_pos, target_poi) / max_dist
-  - Individual arrival reward: +10.0 * quality when an agent reaches the POI
-  - Step penalty: -0.01 per navigation step
-  - Terminal reward: +50.0 * quality when ALL agents reach the agreed POI
+Reward shaping matches v2 (negotiation bonuses, potential-based navigation).
 """
 
 from __future__ import annotations
@@ -63,7 +49,7 @@ def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray) -> float:
 
 
 class GridNegotiationGymEnv(gym.Env):
-    """Gymnasium wrapper around GridNegotiationEnv (v2) for EPyMARL."""
+    """Gymnasium wrapper around GridNegotiationEnv (v3) for EPyMARL."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
 
@@ -112,6 +98,10 @@ class GridNegotiationGymEnv(gym.Env):
         self._prev_potentials: Dict[str, float] = {}
         self._target_bfs: np.ndarray | None = None
         self._individual_arrived: Dict[str, bool] = {}
+
+    def get_policy_branch(self) -> int:
+        """Index for dual-policy training: 0 = negotiation, 1 = navigation."""
+        return 0 if self._env.phase == "negotiation" else 1
 
     def reset(
         self, seed: int | None = None, options: dict | None = None

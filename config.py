@@ -5,16 +5,23 @@ Change ENV_VERSION here and it will propagate everywhere:
   (via GridNegotiationEnv / ENV_TAG from callers).
 """
 
-ENV_VERSION = 2  # 0 = grid obs, 1 = symbolic obs, 2 = symbolic obs + reward shaping
+ENV_VERSION = 2  # 0 = grid obs, 1 = symbolic obs, 2 = symbolic + shaping, 3 = v2 w/ dual-policy (18-D obs)
 
 # --- Derived (do not edit) ------------------------------------------------
 
-if ENV_VERSION == 2:
+if ENV_VERSION == 3:
+    from thesslink_rl.v3 import ENV_TAG, GridNegotiationEnv
+elif ENV_VERSION == 2:
     from thesslink_rl.v2 import ENV_TAG, GridNegotiationEnv
 elif ENV_VERSION == 1:
     from thesslink_rl.v1 import ENV_TAG, GridNegotiationEnv
 else:
     from thesslink_rl.v0 import ENV_TAG, GridNegotiationEnv
 
-_ENV_CONFIG_MAP = {0: "thesslink", 1: "thesslink_v1", 2: "thesslink_v2"}
+_ENV_CONFIG_MAP = {
+    0: "thesslink",
+    1: "thesslink_v1",
+    2: "thesslink_v2",
+    3: "thesslink_v3",
+}
 ENV_CONFIG = _ENV_CONFIG_MAP.get(ENV_VERSION, "thesslink")
