@@ -47,10 +47,10 @@ _ensure_env_version_for_smoke()
 from config import ENV_CONFIG, ENV_TAG, ENV_VERSION, GridNegotiationEnv
 from thesslink_rl.constants import (
     AGENT_CONFIG_YAMLS,
-    EPYMARL_RESULTS,
     EPYMARL_SRC,
     PLOTS_DIR,
     PROJECT_ROOT,
+    RESULTS_DIR,
     TRAINING_ALGOS,
     epymarl_common_reward_cli_flag,
 )
@@ -67,7 +67,7 @@ SACRED_VERSION_MARKER = f"GridNegotiation-v{ENV_VERSION}"
 def _latest_sacred_run_for_smoke_algo(algo: str) -> Path:
     """Newest Sacred run for *algo* and current env version."""
     algo_l = algo.lower()
-    sacred_algo = EPYMARL_RESULTS / "sacred" / algo_l
+    sacred_algo = RESULTS_DIR / "sacred" / algo_l
     if not sacred_algo.is_dir():
         raise FileNotFoundError(f"No Sacred tree at {sacred_algo}")
     candidates = [
@@ -89,6 +89,7 @@ def run_training(algo: str) -> Path:
         sys.executable, str(EPYMARL_SRC / "main.py"),
         f"--config={algo}", f"--env-config={ENV_CONFIG}",
         "with",
+        f"local_results_path={RESULTS_DIR.resolve()}",
         f"t_max={T_MAX}",
         f"test_interval={TEST_INTERVAL}",
         f"log_interval={LOG_INTERVAL}",
@@ -284,14 +285,14 @@ def main():
     print(f"\n{'='*60}")
     print("SMOKE TEST COMPLETE")
     print(f"{'='*60}")
-    print(f"\nResults saved in: {EPYMARL_RESULTS}")
+    print(f"\nResults saved in: {RESULTS_DIR}")
     print(f"Plots saved in:   {env_plots}")
     for algo in TRAINING_ALGOS:
         print(f"  [{algo}] {_make_filename('training_curves', 'png', algo)}")
         print(f"  [{algo}] {_make_filename('eval_heatmaps', 'png', algo)}")
         print(f"  [{algo}] {_make_filename('episode_replay', 'gif', algo)}")
 
-    models_root = EPYMARL_RESULTS / "models"
+    models_root = RESULTS_DIR / "models"
     if models_root.exists():
         for algo in TRAINING_ALGOS:
             needle = f"/{algo}_"

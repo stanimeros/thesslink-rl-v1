@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Visualize training results from Sacred metrics under ``epymarl/results/``.
+"""Visualize training results from Sacred metrics under ``results/`` (repo root).
 
 With **no** Sacred results for the chosen env: writes **3** placeholder files —
 ``training_curves-example.png``, ``eval_heatmaps-example.png``,
@@ -7,7 +7,7 @@ With **no** Sacred results for the chosen env: writes **3** placeholder files �
 
 With results: ``training_curves-all.png`` (all algorithms), **one** shared
 ``eval_heatmaps.png``, per-algorithm training curves, and episode GIFs from the
-**best** checkpoint under ``epymarl/results/models``.
+**best** checkpoint under ``results/models``.
 
 Usage:
     python visualize.py --env 3
@@ -34,7 +34,7 @@ from thesslink_rl.checkpoints import (
     test_reward_series,
 )
 from thesslink_rl.evaluation import AgentConfig, compute_poi_scores
-from thesslink_rl.constants import AGENT_CONFIG_YAMLS, EPYMARL_RESULTS
+from thesslink_rl.constants import AGENT_CONFIG_YAMLS, RESULTS_DIR
 from thesslink_rl.visualization import (
     _env_out_dir,
     _make_filename,
@@ -243,7 +243,7 @@ def generate_example_plots() -> None:
         agent_configs,
         algo=EXAMPLE_TAG,
         env_name=ENV_TAG,
-        title="Example — add epymarl/results to plot real runs",
+        title="Example — add results/ (Sacred) to plot real runs",
     )
     print(f"  -> plots/{ENV_TAG}/{_make_filename('eval_heatmaps', 'png', EXAMPLE_TAG)}")
 
@@ -436,7 +436,7 @@ def main():
 
     print(f"Using environment: {ENV_TAG} (ENV_VERSION={ENV_VERSION})")
 
-    runs = discover_runs(EPYMARL_RESULTS)
+    runs = discover_runs(RESULTS_DIR)
     if not runs:
         print(
             "No Sacred metrics for this selection — writing exactly 3 example files "
@@ -451,7 +451,7 @@ def main():
     print(
         "Output: training_curves-all.png, eval_heatmaps.png, "
         "training_curves-<alg>.png per algorithm, "
-        f"episode_replay-<alg>.gif per algorithm when checkpoints exist under {EPYMARL_RESULTS / 'models'}.\n",
+        f"episode_replay-<alg>.gif per algorithm when checkpoints exist under {RESULTS_DIR / 'models'}.\n",
     )
 
     print_summary(runs)
@@ -465,7 +465,7 @@ def main():
     print("[3/3] Eval heatmap (one) + per-algorithm episode GIFs (best checkpoint)...")
     generate_heatmaps_and_replays(
         algos,
-        results_dir=EPYMARL_RESULTS,
+        results_dir=RESULTS_DIR,
         runs=runs,
         models_root=None,
     )

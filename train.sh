@@ -8,7 +8,7 @@
 #   ./train.sh --status   # live dashboard (watch -n 2; Ctrl+C to stop)
 #   ./train.sh --kill     # kill all running training processes
 #
-# Results layout (epymarl/results/):
+# Results layout (results/ at repo root; Sacred local_results_path):
 #   logs/v<N>/<alg>.log   — nohup (per env version; v2 and v3 runs are kept separate)
 #   sacred/…/GridNegotiation-v<N>/…
 #   models/…/GridNegotiation-v<N>_…/…
@@ -45,7 +45,7 @@ print(' '.join(mod.TRAINING_ALGOS))
 }
 read -r -a ALL_ALGOS <<< "$(_training_algos_words)"
 
-RESULTS_DIR="epymarl/results"
+RESULTS_DIR="results"
 # Absolute base; per-run nohup logs live in logs/v<N>/ (set after ENV_VERSION is known).
 RESULTS_DIR_ABS="$SCRIPT_DIR/$RESULTS_DIR"
 LOGS_ROOT="$RESULTS_DIR_ABS/logs"
@@ -325,7 +325,7 @@ for alg in "${ALGOS[@]}"; do
         --config="$alg" \
         --env-config="$ENV_CONFIG" \
         with \
-        local_results_path=epymarl/results \
+        local_results_path="$RESULTS_DIR_ABS" \
         save_model=True \
         test_interval=50000 \
         log_interval=25000 \
