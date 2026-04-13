@@ -34,7 +34,7 @@ from thesslink_rl.checkpoints import (
     test_reward_series,
 )
 from thesslink_rl.evaluation import AgentConfig, compute_poi_scores
-from thesslink_rl.constants import AGENT_CONFIG_YAMLS, RESULTS_DIR
+from thesslink_rl.constants import AGENT_CONFIG_YAMLS, EPYMARL_DIR, RESULTS_DIR
 from thesslink_rl.visualization import (
     _env_out_dir,
     _make_filename,
@@ -66,30 +66,39 @@ def discover_runs(results_dir: Path) -> dict[str, dict]:
       sacred/<algo>/thesslink_rl:thesslink/GridNegotiation-v<N>/<run_id>/metrics.json
 
     Only runs whose path contains ``GridNegotiation-v{ENV_VERSION}`` are returned.
+
+    Checks repo ``results/`` first, then ``epymarl/results/`` (EPyMARL default if
+    ``local_results_path`` was not set to repo root).
     """
     from config import ENV_VERSION
 
-    sacred_dir = results_dir / "sacred"
-    if not sacred_dir.exists():
-        print(f"No Sacred results at {sacred_dir}")
+    version_marker = f"GridNegotiation-v{ENV_VERSION}"
+    bases = (results_dir, EPYMARL_DIR / "results")
+    if not any((b / "sacred").is_dir() for b in bases):
+        print(
+            "No Sacred results under any of: "
+            + ", ".join(str(b / "sacred") for b in bases),
+        )
         return {}
 
-    version_marker = f"GridNegotiation-v{ENV_VERSION}"
-
-    runs = {}
-    for alg_dir in sorted(sacred_dir.iterdir()):
-        if not alg_dir.is_dir():
+    runs: dict[str, dict] = {}
+    for base in bases:
+        sacred_dir = base / "sacred"
+        if not sacred_dir.is_dir():
             continue
-        metrics_files = [
-            f for f in alg_dir.rglob("metrics.json")
-            if version_marker in str(f)
-        ]
-        if not metrics_files:
-            continue
-        metrics_files.sort()
-        with open(metrics_files[-1]) as f:
-            metrics = json.load(f)
-        runs[alg_dir.name] = metrics
+        for alg_dir in sorted(sacred_dir.iterdir()):
+            if not alg_dir.is_dir() or alg_dir.name in runs:
+                continue
+            metrics_files = [
+                f for f in alg_dir.rglob("metrics.json")
+                if version_marker in str(f)
+            ]
+            if not metrics_files:
+                continue
+            metrics_files.sort()
+            with open(metrics_files[-1]) as f:
+                metrics = json.load(f)
+            runs[alg_dir.name] = metrics
     return runs
 
 

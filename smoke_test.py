@@ -47,6 +47,7 @@ _ensure_env_version_for_smoke()
 from config import ENV_CONFIG, ENV_TAG, ENV_VERSION, GridNegotiationEnv
 from thesslink_rl.constants import (
     AGENT_CONFIG_YAMLS,
+    EPYMARL_DIR,
     EPYMARL_SRC,
     PLOTS_DIR,
     PROJECT_ROOT,
@@ -64,22 +65,31 @@ SAVE_MODEL_INTERVAL = 500
 SACRED_VERSION_MARKER = f"GridNegotiation-v{ENV_VERSION}"
 
 
+def _sacred_results_bases() -> tuple[Path, ...]:
+    """Where FileStorageObserver may write: repo ``results/`` (preferred), then EPyMARL default."""
+    return (RESULTS_DIR, EPYMARL_DIR / "results")
+
+
 def _latest_sacred_run_for_smoke_algo(algo: str) -> Path:
     """Newest Sacred run for *algo* and current env version."""
     algo_l = algo.lower()
-    sacred_algo = RESULTS_DIR / "sacred" / algo_l
-    if not sacred_algo.is_dir():
-        raise FileNotFoundError(f"No Sacred tree at {sacred_algo}")
-    candidates = [
-        p for p in sacred_algo.rglob("metrics.json")
-        if SACRED_VERSION_MARKER in str(p)
-    ]
-    if not candidates:
-        raise FileNotFoundError(
-            f"No metrics under {sacred_algo} matching {SACRED_VERSION_MARKER!r}",
-        )
-    latest = max(candidates, key=lambda p: p.stat().st_mtime)
-    return latest.parent
+    for base in _sacred_results_bases():
+        sacred_algo = base / "sacred" / algo_l
+        if not sacred_algo.is_dir():
+            continue
+        candidates = [
+            p for p in sacred_algo.rglob("metrics.json")
+            if SACRED_VERSION_MARKER in str(p)
+        ]
+        if not candidates:
+            continue
+        latest = max(candidates, key=lambda p: p.stat().st_mtime)
+        return latest.parent
+    bases = ", ".join(str(b) for b in _sacred_results_bases())
+    raise FileNotFoundError(
+        f"No Sacred tree for {algo_l!r} under sacred/{algo_l}/ in any of: {bases} "
+        f"(need metrics.json with {SACRED_VERSION_MARKER!r} in path)",
+    )
 
 
 def run_training(algo: str) -> Path:
@@ -105,8 +115,11 @@ def run_training(algo: str) -> Path:
     print(f"  cmd: {' '.join(cmd[cmd.index('with'):])}")
     print(f"{'='*60}\n")
 
+    # Match ``train.sh`` (repo root cwd). EPyMARL defaults ``local_results_path`` to
+    # ``epymarl/results`` relative to cwd; running from ``epymarl/src`` breaks repo-root
+    # ``results/sacred`` layout if the CLI override is not applied.
     proc = subprocess.run(
-        cmd, cwd=str(EPYMARL_SRC),
+        cmd, cwd=str(PROJECT_ROOT),
         capture_output=False,
     )
     if proc.returncode != 0:
