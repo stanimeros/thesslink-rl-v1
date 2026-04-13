@@ -10,7 +10,7 @@ File-oriented helpers default to ``show=False`` (non-interactive / headless).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
     # Same structural API across v0/v1/v2; v2 is representative for static typing only.
@@ -572,3 +572,23 @@ def capture_frame(
         "neg_turn": getattr(env, "neg_turn", None),
         "action_desc": action_desc,
     }
+
+
+def random_episode_frames(env: Any, max_steps: int = 40) -> list[dict]:
+    """Build frames with a fixed RNG walk (demo / smoke GIFs when no checkpoint)."""
+    rng = np.random.RandomState(99)
+    frames = [capture_frame(env)]
+    for _ in range(max_steps):
+        if not env.agents:
+            break
+        actions = {}
+        for agent in env.agents:
+            avail = env.get_avail_actions(agent)
+            valid = [i for i, a in enumerate(avail) if a == 1]
+            actions[agent] = rng.choice(valid)
+        desc = describe_actions(env, actions)
+        _obs, _rew, terminated, truncated, _infos = env.step(actions)
+        frames.append(capture_frame(env, action_desc=desc))
+        if all(terminated.values()) or all(truncated.values()):
+            break
+    return frames

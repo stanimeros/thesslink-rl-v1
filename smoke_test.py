@@ -179,12 +179,10 @@ def print_results_table(metrics: dict, *, algo: str):
 
 def generate_plots(metrics: dict, algo: str):
     """Generate the same 3 plots the project already has."""
-    import numpy as np
     from thesslink_rl.evaluation import AgentConfig, compute_poi_scores
     from thesslink_rl.visualization import (
-        capture_frame,
-        describe_actions,
         plot_training_curves,
+        random_episode_frames,
         render_eval_heatmaps,
         replay_episode,
     )
@@ -252,23 +250,7 @@ def generate_plots(metrics: dict, algo: str):
         )
         env.poi_scores[agent] = scores
 
-    rng = np.random.RandomState(99)
-    frames = [capture_frame(env)]
-
-    for step in range(40):
-        if not env.agents:
-            break
-        actions = {}
-        for agent in env.agents:
-            avail = env.get_avail_actions(agent)
-            valid = [i for i, a in enumerate(avail) if a == 1]
-            actions[agent] = rng.choice(valid)
-
-        desc = describe_actions(env, actions)
-        obs, rewards, terminated, truncated, infos = env.step(actions)
-        frames.append(capture_frame(env, action_desc=desc))
-        if all(terminated.values()) or all(truncated.values()):
-            break
+    frames = random_episode_frames(env)
 
     fname = _make_filename("episode_replay", "gif", algo)
     print(f"  [3/3] Episode replay GIF...")

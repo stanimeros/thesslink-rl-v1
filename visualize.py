@@ -41,6 +41,7 @@ from thesslink_rl.visualization import (
     capture_frame,
     describe_actions,
     plot_training_curves,
+    random_episode_frames,
     render_eval_heatmaps,
     replay_episode,
     rolling_mean_expanding,
@@ -258,7 +259,7 @@ def generate_example_plots() -> None:
 
     env.reset(seed=SEED)
     _sync_poi_scores(env, agent_configs)
-    frames = _random_episode_frames(env)
+    frames = random_episode_frames(env)
     print(f"[3/3] Example episode replay ({_make_filename('episode_replay', 'gif', EXAMPLE_TAG)})")
     replay_episode(
         frames,
@@ -268,26 +269,6 @@ def generate_example_plots() -> None:
         env_name=ENV_TAG,
     )
     print(f"  -> plots/{ENV_TAG}/{_make_filename('episode_replay', 'gif', EXAMPLE_TAG)}")
-
-
-def _random_episode_frames(env: Any, max_steps: int = 40) -> list[dict]:
-    """Fallback when no checkpoint or policy rollout fails (fixed RNG for reproducibility)."""
-    rng = np.random.RandomState(99)
-    frames = [capture_frame(env)]
-    for _ in range(max_steps):
-        if not env.agents:
-            break
-        actions = {}
-        for agent in env.agents:
-            avail = env.get_avail_actions(agent)
-            valid = [i for i, a in enumerate(avail) if a == 1]
-            actions[agent] = rng.choice(valid)
-        desc = describe_actions(env, actions)
-        obs, rewards, terminated, truncated, infos = env.step(actions)
-        frames.append(capture_frame(env, action_desc=desc))
-        if all(terminated.values()) or all(truncated.values()):
-            break
-    return frames
 
 
 def generate_heatmaps_and_replays(
