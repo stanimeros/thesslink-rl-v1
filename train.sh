@@ -327,10 +327,10 @@ for alg in "${ALGOS[@]}"; do
         with \
         local_results_path=epymarl/results \
         save_model=True \
-        save_model_interval=500000 \
         test_interval=50000 \
         log_interval=25000 \
-        t_max=2000000 \
+        save_model_interval=500000 \
+        t_max=1000000 \
         $extra \
         > "$logfile" 2>&1 &
     PIDS+=($!)
