@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke test: short QMIX training + generate all three plots.
+"""Smoke test: short training for all algorithms (IQL, QMIX, VDN, MAPPO, COMA) + plots.
 
 Usage:
     source .venv/bin/activate
@@ -57,34 +57,42 @@ TEST_INTERVAL = 1_000
 LOG_INTERVAL = 1_000
 SAVE_MODEL_INTERVAL = 1_000
 
+# Same set and reward convention as train.sh (algo_extra_args).
+SMOKE_ALGOS = ("iql", "qmix", "vdn", "mappo", "coma")
+
 SACRED_VERSION_MARKER = f"GridNegotiation-v{ENV_VERSION}"
 
 
-def _latest_sacred_run_for_smoke() -> Path:
-    """Sacred run for this smoke test: QMIX + current env version, newest mtime."""
-    sacred_base = RESULTS_DIR / "sacred"
+def _common_reward_arg(algo: str) -> str:
+    if algo in ("iql", "mappo"):
+        return "common_reward=False"
+    return "common_reward=True"
+
+
+def _latest_sacred_run_for_smoke_algo(algo: str) -> Path:
+    """Newest Sacred run for *algo* and current env version."""
+    algo_l = algo.lower()
+    sacred_algo = RESULTS_DIR / "sacred" / algo_l
+    if not sacred_algo.is_dir():
+        raise FileNotFoundError(f"No Sacred tree at {sacred_algo}")
     candidates = [
-        p for p in sacred_base.rglob("metrics.json")
-        if SACRED_VERSION_MARKER in str(p) and "qmix" in p.parts
+        p for p in sacred_algo.rglob("metrics.json")
+        if SACRED_VERSION_MARKER in str(p)
     ]
     if not candidates:
-        candidates = [
-            p for p in sacred_base.rglob("metrics.json")
-            if SACRED_VERSION_MARKER in str(p)
-        ]
-    if not candidates:
         raise FileNotFoundError(
-            f"No Sacred metrics under {sacred_base} matching {SACRED_VERSION_MARKER!r}",
+            f"No metrics under {sacred_algo} matching {SACRED_VERSION_MARKER!r}",
         )
     latest = max(candidates, key=lambda p: p.stat().st_mtime)
     return latest.parent
 
 
-def run_training() -> Path:
-    """Launch a quick QMIX training and return the Sacred run directory."""
+def run_training(algo: str) -> Path:
+    """Launch a short training run for *algo*; return the Sacred run directory."""
+    algo = algo.lower()
     cmd = [
         sys.executable, str(EPYMARL_SRC / "main.py"),
-        "--config=qmix", f"--env-config={ENV_CONFIG}",
+        f"--config={algo}", f"--env-config={ENV_CONFIG}",
         "with",
         f"t_max={T_MAX}",
         f"test_interval={TEST_INTERVAL}",
@@ -92,10 +100,12 @@ def run_training() -> Path:
         f"save_model=True",
         f"save_model_interval={SAVE_MODEL_INTERVAL}",
         f"test_nepisode=8",
+        _common_reward_arg(algo),
     ]
     print(f"\n{'='*60}")
-    print("STEP 1: Running short QMIX training")
+    print(f"STEP 1 — Smoke training: {algo.upper()}")
     print(f"  t_max={T_MAX}  test_interval={TEST_INTERVAL}  log_interval={LOG_INTERVAL}")
+    print(f"  {_common_reward_arg(algo)}")
     print(f"  cmd: {' '.join(cmd[cmd.index('with'):])}")
     print(f"{'='*60}\n")
 
@@ -104,11 +114,11 @@ def run_training() -> Path:
         capture_output=False,
     )
     if proc.returncode != 0:
-        print(f"Training failed with exit code {proc.returncode}")
+        print(f"{algo} training failed with exit code {proc.returncode}")
         sys.exit(1)
 
     try:
-        run_dir = _latest_sacred_run_for_smoke()
+        run_dir = _latest_sacred_run_for_smoke_algo(algo)
     except FileNotFoundError as e:
         print(f"No Sacred results found: {e}")
         sys.exit(1)
@@ -124,10 +134,10 @@ def load_sacred_metrics(run_dir: Path) -> dict:
     return raw
 
 
-def print_results_table(metrics: dict):
+def print_results_table(metrics: dict, *, algo: str):
     """Print a summary table of training results."""
     print(f"\n{'='*60}")
-    print("STEP 2: Training Results Summary")
+    print(f"STEP 2 — Results summary ({algo.upper()})")
     print(f"{'='*60}")
 
     keys_of_interest = [
@@ -158,7 +168,7 @@ def print_results_table(metrics: dict):
         print(f"\nOther logged metrics: {', '.join(other_keys)}")
 
 
-def generate_plots(metrics: dict, algo: str = "qmix"):
+def generate_plots(metrics: dict, algo: str):
     """Generate the same 3 plots the project already has."""
     import numpy as np
     from thesslink_rl.evaluation import AgentConfig, compute_poi_scores
@@ -171,7 +181,7 @@ def generate_plots(metrics: dict, algo: str = "qmix"):
     )
 
     print(f"\n{'='*60}")
-    print("STEP 3: Generating Plots")
+    print(f"STEP 3 — Plots ({algo.upper()})")
     print(f"{'='*60}")
 
     # --- 3a. Training curves from Sacred metrics ---
@@ -268,40 +278,40 @@ def main():
     print("ThessLink RL — Smoke Test")
     print(f"Project: {PROJECT}")
     print(f"Environment version: v{ENV_VERSION} (env-config={ENV_CONFIG})")
+    print(f"Algorithms: {', '.join(a.upper() for a in SMOKE_ALGOS)}")
 
-    run_dir = run_training()
-    metrics = load_sacred_metrics(run_dir)
-    print_results_table(metrics)
-    generate_plots(metrics)
+    for algo in SMOKE_ALGOS:
+        run_dir = run_training(algo)
+        metrics = load_sacred_metrics(run_dir)
+        print_results_table(metrics, algo=algo)
+        generate_plots(metrics, algo=algo)
 
-    algo = "qmix"
     env_plots = PLOTS_DIR / ENV_TAG
     print(f"\n{'='*60}")
     print("SMOKE TEST COMPLETE")
     print(f"{'='*60}")
     print(f"\nResults saved in: {RESULTS_DIR}")
     print(f"Plots saved in:   {env_plots}")
-    print(f"  - {_make_filename('training_curves', 'png', algo)}")
-    print(f"  - {_make_filename('eval_heatmaps', 'png', algo)}")
-    print(f"  - {_make_filename('episode_replay', 'gif', algo)}")
+    for algo in SMOKE_ALGOS:
+        print(f"  [{algo}] {_make_filename('training_curves', 'png', algo)}")
+        print(f"  [{algo}] {_make_filename('eval_heatmaps', 'png', algo)}")
+        print(f"  [{algo}] {_make_filename('episode_replay', 'gif', algo)}")
 
     models_root = RESULTS_DIR / "models"
     if models_root.exists():
-        th_files = [
-            p for p in models_root.rglob("*.th")
-            if SACRED_VERSION_MARKER in str(p) and "/qmix_" in str(p).replace("\\", "/")
-        ]
-        if not th_files:
+        for algo in SMOKE_ALGOS:
+            needle = f"/{algo}_"
             th_files = [
                 p for p in models_root.rglob("*.th")
                 if SACRED_VERSION_MARKER in str(p)
+                and needle in str(p).replace("\\", "/").lower()
             ]
-        if th_files:
-            latest_th = max(th_files, key=lambda p: p.stat().st_mtime)
-            print(
-                f"\nLatest checkpoint (smoke, {SACRED_VERSION_MARKER}): "
-                f"{latest_th.parent}",
-            )
+            if th_files:
+                latest_th = max(th_files, key=lambda p: p.stat().st_mtime)
+                print(
+                    f"\nLatest checkpoint (smoke, {algo}, {SACRED_VERSION_MARKER}): "
+                    f"{latest_th.parent}",
+                )
     print()
 
 

@@ -275,7 +275,7 @@ done
 
 # ── Smoke test ───────────────────────────────────────────────────────────
 
-prepare_results_tree "before smoke — only QMIX short run + plots"
+prepare_results_tree "before smoke — short runs for all algorithms + plots"
 log "Smoke will use --env-config=${ENV_CONFIG} (see epymarl/src/config/envs/${ENV_CONFIG}.yaml)"
 
 log "Running smoke test..."
