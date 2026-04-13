@@ -69,7 +69,7 @@ diff --git a/src/envs/gymma.py b/src/envs/gymma.py
 index c452bc6..c1b218b 100644
 --- a/src/envs/gymma.py
 +++ b/src/envs/gymma.py
-@@ -161,3 +161,13 @@ class GymmaWrapper(MultiAgentEnv):
+@@ -161,3 +161,17 @@ class GymmaWrapper(MultiAgentEnv):
  
      def get_stats(self):
          return {}
@@ -297,7 +297,7 @@ index 99f7f41..a9ef991 100644
 +            elif isinstance(v, (list, tuple)):
 +                arr = np.asarray(v)
 +                if arr.dtype == np.object_:
-+                    arr = np.asarray(list(v))
++                    arr = np.array(v, dtype=np.float64 if dtype in (th.float32, th.float64) else np.int64)
 +                v = th.as_tensor(arr, dtype=dtype, device=self.device)
 +            else:
 +                v = th.as_tensor(v, dtype=dtype, device=self.device)
