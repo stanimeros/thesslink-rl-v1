@@ -51,7 +51,6 @@ from thesslink_rl.constants import (
     EPYMARL_SRC,
     PLOTS_DIR,
     PROJECT_ROOT,
-    RESULTS_DIR,
     TRAINING_ALGOS,
     epymarl_common_reward_cli_flag,
 )
@@ -63,11 +62,12 @@ TEST_INTERVAL = 250
 SAVE_MODEL_INTERVAL = 500
 
 SACRED_VERSION_MARKER = f"GridNegotiation-v{ENV_VERSION}"
+SMOKE_RESULTS_DIR = EPYMARL_DIR / "results"
 
 
 def _sacred_results_bases() -> tuple[Path, ...]:
-    """Where FileStorageObserver may write: repo ``results/`` (preferred), then EPyMARL default."""
-    return (RESULTS_DIR, EPYMARL_DIR / "results")
+    """Smoke/train runs write Sacred output under ``epymarl/results``."""
+    return (SMOKE_RESULTS_DIR,)
 
 
 def _latest_sacred_run_for_smoke_algo(algo: str) -> Path:
@@ -99,7 +99,7 @@ def run_training(algo: str) -> Path:
         sys.executable, str(EPYMARL_SRC / "main.py"),
         f"--config={algo}", f"--env-config={ENV_CONFIG}",
         "with",
-        f"local_results_path={RESULTS_DIR.resolve()}",
+        f"local_results_path={SMOKE_RESULTS_DIR.resolve()}",
         f"t_max={T_MAX}",
         f"test_interval={TEST_INTERVAL}",
         f"log_interval={LOG_INTERVAL}",
@@ -280,14 +280,14 @@ def main():
     print(f"\n{'='*60}")
     print("SMOKE TEST COMPLETE")
     print(f"{'='*60}")
-    print(f"\nResults saved in: {RESULTS_DIR}")
+    print(f"\nResults saved in: {SMOKE_RESULTS_DIR}")
     print(f"Plots saved in:   {env_plots}")
     for algo in TRAINING_ALGOS:
         print(f"  [{algo}] {_make_filename('training_curves', 'png', algo)}")
         print(f"  [{algo}] {_make_filename('eval_heatmaps', 'png', algo)}")
         print(f"  [{algo}] {_make_filename('episode_replay', 'gif', algo)}")
 
-    models_root = RESULTS_DIR / "models"
+    models_root = SMOKE_RESULTS_DIR / "models"
     if models_root.exists():
         for algo in TRAINING_ALGOS:
             needle = f"/{algo}_"

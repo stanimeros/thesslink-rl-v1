@@ -8,12 +8,11 @@
 #   ./train.sh --status   # live dashboard (watch -n 2; Ctrl+C to stop)
 #   ./train.sh --kill     # kill all running training processes
 #
-# Results layout (results/ at repo root; Sacred local_results_path):
+# Results layout (epymarl/results; Sacred local_results_path):
 #   logs/v<N>/<alg>.log   — nohup (per env version; v2 and v3 runs are kept separate)
 #   sacred/…/GridNegotiation-v<N>/…
 #   models/…/GridNegotiation-v<N>_…/…
-# Before smoke and again before full training: delete all of results/{sacred,models,logs}
-# (and legacy epymarl/results if present). Copy archived metrics back in after a run if needed.
+# Before smoke and again before full training: delete all of epymarl/results/{sacred,models,logs}.
 #
 set -euo pipefail
 
@@ -46,7 +45,7 @@ print(' '.join(mod.TRAINING_ALGOS))
 }
 read -r -a ALL_ALGOS <<< "$(_training_algos_words)"
 
-RESULTS_DIR="results"
+RESULTS_DIR="epymarl/results"
 # Absolute base; per-run nohup logs live in logs/v<N>/ (set after ENV_VERSION is known).
 RESULTS_DIR_ABS="$SCRIPT_DIR/$RESULTS_DIR"
 LOGS_ROOT="$RESULTS_DIR_ABS/logs"
@@ -70,10 +69,6 @@ prepare_results_tree() {
     log "Wiping all training outputs ($phase): $RESULTS_DIR/{sacred,models,logs}"
     rm -rf "$RESULTS_DIR_ABS/sacred" "$RESULTS_DIR_ABS/models" "$RESULTS_DIR_ABS/logs"
     mkdir -p "$RESULTS_DIR_ABS/sacred" "$RESULTS_DIR_ABS/models" "$LOGS_ROOT/v${ver}"
-    if [[ -d "$SCRIPT_DIR/epymarl/results" ]]; then
-        log "Removing legacy epymarl/results/"
-        rm -rf "$SCRIPT_DIR/epymarl/results"
-    fi
 }
 
 _status_table_for_logs_dir() {

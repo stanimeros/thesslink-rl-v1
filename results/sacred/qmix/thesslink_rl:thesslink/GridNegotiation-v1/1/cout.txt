@@ -1,0 +1,352 @@
+[INFO 14:42:54] pymarl Running command 'my_main'
+[INFO 14:42:54] pymarl Started run with ID "1"
+[DEBUG 14:42:54] pymarl Starting Heartbeat
+[DEBUG 14:42:54] my_main Started
+[INFO 14:42:54] my_main Experiment Parameters:
+[INFO 14:42:54] my_main 
+
+{   'action_selector': 'epsilon_greedy',
+    'add_value_last_step': True,
+    'agent': 'rnn',
+    'agent_output_type': 'q',
+    'batch_size': 32,
+    'batch_size_run': 1,
+    'buffer_cpu_only': True,
+    'buffer_size': 5000,
+    'checkpoint_path': '',
+    'common_reward': True,
+    'double_q': True,
+    'env': 'gymma',
+    'env_args': {   'key': 'thesslink_rl:thesslink/GridNegotiation-v1',
+                    'pretrained_wrapper': None,
+                    'seed': 239942344,
+                    'time_limit': 100},
+    'epsilon_anneal_time': 50000,
+    'epsilon_finish': 0.05,
+    'epsilon_start': 1.0,
+    'evaluate': False,
+    'evaluation_epsilon': 0.0,
+    'gamma': 0.99,
+    'grad_norm_clip': 10,
+    'hidden_dim': 64,
+    'hypergroup': None,
+    'hypernet_embed': 64,
+    'hypernet_layers': 2,
+    'label': 'default_label',
+    'learner': 'q_learner',
+    'learner_log_interval': 2000,
+    'load_step': 0,
+    'local_results_path': '/home/aid26006/thesslink-rl/results',
+    'log_interval': 25000,
+    'lr': 0.0005,
+    'mac': 'basic_mac',
+    'mixer': 'qmix',
+    'mixing_embed_dim': 32,
+    'name': 'qmix',
+    'obs_agent_id': True,
+    'obs_individual_obs': False,
+    'obs_last_action': False,
+    'optim_alpha': 0.99,
+    'optim_eps': 1e-05,
+    'render': False,
+    'repeat_id': 1,
+    'reward_scalarisation': 'sum',
+    'runner': 'episode',
+    'runner_log_interval': 2000,
+    'save_model': True,
+    'save_model_interval': 500000,
+    'save_replay': False,
+    'seed': 239942344,
+    'standardise_returns': False,
+    'standardise_rewards': True,
+    't_max': 1000000,
+    'target_update_interval_or_tau': 200,
+    'test_greedy': True,
+    'test_interval': 50000,
+    'test_nepisode': 32,
+    'use_cuda': True,
+    'use_rnn': False,
+    'use_tensorboard': False,
+    'use_wandb': False,
+    'wandb_mode': 'offline',
+    'wandb_project': None,
+    'wandb_save_model': False,
+    'wandb_team': None}
+
+/mnt/redpro/home/aid26006/thesslink-rl/.venv/lib/python3.10/site-packages/gymnasium/envs/registration.py:512: DeprecationWarning: [33mWARN: The environment thesslink/GridNegotiation-v1 is out of date. You should consider upgrading to version `v3`.[0m
+  logger.deprecation(
+[INFO 14:42:56] my_main Beginning training for 1000000 timesteps
+/mnt/redpro/home/aid26006/thesslink-rl/epymarl/src/components/episode_buffer.py:93: UserWarning: Using a non-tuple sequence for multidimensional indexing is deprecated and will be changed in pytorch 2.9; use x[tuple(seq)] instead of x[seq]. In pytorch 2.9 this will be interpreted as tensor index, x[torch.tensor(seq)], which will result either in an error or a different result (Triggered internally at /pytorch/torch/csrc/autograd/python_variable_indexing.cpp:347.)
+  target["filled"][slices] = 1
+/mnt/redpro/home/aid26006/thesslink-rl/epymarl/src/components/episode_buffer.py:105: UserWarning: Using a non-tuple sequence for multidimensional indexing is deprecated and will be changed in pytorch 2.9; use x[tuple(seq)] instead of x[seq]. In pytorch 2.9 this will be interpreted as tensor index, x[torch.tensor(seq)], which will result either in an error or a different result (Triggered internally at /pytorch/torch/csrc/autograd/python_variable_indexing.cpp:347.)
+  self._check_safe_view(v, target[k][_slices])
+/mnt/redpro/home/aid26006/thesslink-rl/epymarl/src/components/episode_buffer.py:106: UserWarning: Using a non-tuple sequence for multidimensional indexing is deprecated and will be changed in pytorch 2.9; use x[tuple(seq)] instead of x[seq]. In pytorch 2.9 this will be interpreted as tensor index, x[torch.tensor(seq)], which will result either in an error or a different result (Triggered internally at /pytorch/torch/csrc/autograd/python_variable_indexing.cpp:347.)
+  target[k][_slices] = v.view_as(target[k][_slices])
+/mnt/redpro/home/aid26006/thesslink-rl/.venv/lib/python3.10/site-packages/gymnasium/utils/passive_env_checker.py:245: UserWarning: [33mWARN: The reward returned by `step()` must be a float, int, np.integer or np.floating, actual type: <class 'list'>[0m
+  logger.warn(
+/mnt/redpro/home/aid26006/thesslink-rl/epymarl/src/components/episode_buffer.py:110: UserWarning: Using a non-tuple sequence for multidimensional indexing is deprecated and will be changed in pytorch 2.9; use x[tuple(seq)] instead of x[seq]. In pytorch 2.9 this will be interpreted as tensor index, x[torch.tensor(seq)], which will result either in an error or a different result (Triggered internally at /pytorch/torch/csrc/autograd/python_variable_indexing.cpp:347.)
+  v = target[k][_slices]
+/mnt/redpro/home/aid26006/thesslink-rl/epymarl/src/components/episode_buffer.py:113: UserWarning: Using a non-tuple sequence for multidimensional indexing is deprecated and will be changed in pytorch 2.9; use x[tuple(seq)] instead of x[seq]. In pytorch 2.9 this will be interpreted as tensor index, x[torch.tensor(seq)], which will result either in an error or a different result (Triggered internally at /pytorch/torch/csrc/autograd/python_variable_indexing.cpp:347.)
+  target[new_k][_slices] = v.view_as(target[new_k][_slices])
+[INFO 14:42:57] my_main t_env: 100 / 1000000
+[INFO 14:42:57] my_main Estimated time left: 18 seconds. Time passed: 0 seconds
+[INFO 14:43:14] my_main Saving models to /home/aid26006/thesslink-rl/results/models/qmix_seed239942344_thesslink_rl:thesslink/GridNegotiation-v1_2026-04-13 14:42:54.160851/100
+/mnt/redpro/home/aid26006/thesslink-rl/epymarl/src/components/episode_buffer.py:152: UserWarning: Using a non-tuple sequence for multidimensional indexing is deprecated and will be changed in pytorch 2.9; use x[tuple(seq)] instead of x[seq]. In pytorch 2.9 this will be interpreted as tensor index, x[torch.tensor(seq)], which will result either in an error or a different result (Triggered internally at /pytorch/torch/csrc/autograd/python_variable_indexing.cpp:347.)
+  new_data.transition_data[k] = v[item]
+[INFO 14:46:11] my_main Recent Stats | t_env:      25098 | Episode:      259
+battle_won_mean:           0.0658	ep_length_mean:           97.0268	epsilon:                   0.5345	grad_norm:                 0.2828
+loss:                      0.7496	negotiation_agreed_mean:   1.0000	negotiation_optimal_mean:  0.4198	q_taken_mean:              0.1683
+reached_poi_mean:          0.0658	return_mean:               3.1833	return_std:               21.8901	target_mean:               0.1650
+td_error_abs:              0.1429	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  0.0625
+test_negotiation_optimal_mean:  0.0312	test_reached_poi_mean:     0.0000	test_return_mean:         -0.1535	test_return_std:           0.9099
+
+[INFO 14:49:19] my_main t_env: 50164 / 1000000
+[INFO 14:49:19] my_main Estimated time left: 2 hours, 58 seconds. Time passed: 6 minutes, 23 seconds
+[INFO 14:49:35] my_main Recent Stats | t_env:      50164 | Episode:      512
+battle_won_mean:           0.0000	ep_length_mean:          100.0000	epsilon:                   0.0716	grad_norm:                 0.6825
+loss:                      1.1033	negotiation_agreed_mean:   0.9900	negotiation_optimal_mean:  0.3900	q_taken_mean:              0.2596
+reached_poi_mean:          0.0000	return_mean:              -2.8592	return_std:                3.2679	target_mean:               0.2691
+td_error_abs:              0.1344	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  0.5312
+test_negotiation_optimal_mean:  0.1719	test_reached_poi_mean:     0.0000	test_return_mean:         -1.9572	test_return_std:           2.1409
+
+[INFO 14:52:42] my_main Recent Stats | t_env:      75239 | Episode:      766
+battle_won_mean:           0.0277	ep_length_mean:           97.8420	epsilon:                   0.0500	grad_norm:                 0.7720
+loss:                      0.9225	negotiation_agreed_mean:   1.0000	negotiation_optimal_mean:  0.2926	q_taken_mean:              0.2605
+reached_poi_mean:          0.0277	return_mean:              -1.0547	return_std:               13.1673	target_mean:               0.2680
+td_error_abs:              0.1508	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  0.5312
+test_negotiation_optimal_mean:  0.1719	test_reached_poi_mean:     0.0000	test_return_mean:         -1.9572	test_return_std:           2.1409
+
+[INFO 14:55:53] my_main t_env: 100244 / 1000000
+[INFO 14:55:53] my_main Estimated time left: 1 hours, 57 minutes, 57 seconds. Time passed: 12 minutes, 57 seconds
+[INFO 14:56:11] my_main Recent Stats | t_env:     100244 | Episode:     1017
+battle_won_mean:           0.0000	ep_length_mean:          100.0000	epsilon:                   0.0500	grad_norm:                 1.1014
+loss:                      0.3922	negotiation_agreed_mean:   0.9900	negotiation_optimal_mean:  0.2900	q_taken_mean:              0.3087
+reached_poi_mean:          0.0000	return_mean:              -3.7883	return_std:                3.4003	target_mean:               0.2941
+td_error_abs:              0.1412	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  0.6771
+test_negotiation_optimal_mean:  0.1562	test_reached_poi_mean:     0.0000	test_return_mean:         -2.9107	test_return_std:           2.5226
+
+[INFO 14:59:23] my_main Recent Stats | t_env:     125328 | Episode:     1271
+battle_won_mean:           0.0182	ep_length_mean:           98.9182	epsilon:                   0.0500	grad_norm:                 1.4669
+loss:                      0.4587	negotiation_agreed_mean:   0.9718	negotiation_optimal_mean:  0.3364	q_taken_mean:              0.3806
+reached_poi_mean:          0.0182	return_mean:              -0.8555	return_std:                8.2226	target_mean:               0.3842
+td_error_abs:              0.1727	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  0.6771
+test_negotiation_optimal_mean:  0.1562	test_reached_poi_mean:     0.0000	test_return_mean:         -2.9107	test_return_std:           2.5226
+
+[INFO 15:02:35] my_main t_env: 150309 / 1000000
+[INFO 15:02:35] my_main Estimated time left: 1 hours, 53 minutes, 39 seconds. Time passed: 19 minutes, 39 seconds
+[INFO 15:02:52] my_main Recent Stats | t_env:     150409 | Episode:     1526
+battle_won_mean:           0.0000	ep_length_mean:          100.0000	epsilon:                   0.0500	grad_norm:                 1.3450
+loss:                      0.3684	negotiation_agreed_mean:   1.0000	negotiation_optimal_mean:  0.4700	q_taken_mean:              0.4439
+reached_poi_mean:          0.0000	return_mean:              -1.8726	return_std:                3.1894	target_mean:               0.4522
+td_error_abs:              0.1514	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  0.6484
+test_negotiation_optimal_mean:  0.1953	test_reached_poi_mean:     0.0000	test_return_mean:         -2.3411	test_return_std:           2.3130
+
+[INFO 15:05:57] my_main Recent Stats | t_env:     175480 | Episode:     1781
+battle_won_mean:           0.0277	ep_length_mean:           97.6511	epsilon:                   0.0500	grad_norm:                 0.9523
+loss:                      0.3217	negotiation_agreed_mean:   1.0000	negotiation_optimal_mean:  0.4647	q_taken_mean:              0.4468
+reached_poi_mean:          0.0277	return_mean:               0.7189	return_std:               11.9799	target_mean:               0.4624
+td_error_abs:              0.1491	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  0.6484
+test_negotiation_optimal_mean:  0.1953	test_reached_poi_mean:     0.0000	test_return_mean:         -2.3411	test_return_std:           2.3130
+
+[INFO 15:09:11] my_main t_env: 200404 / 1000000
+[INFO 15:09:11] my_main Estimated time left: 1 hours, 45 minutes, 23 seconds. Time passed: 26 minutes, 15 seconds
+[INFO 15:09:26] my_main Recent Stats | t_env:     200504 | Episode:     2033
+battle_won_mean:           0.0286	ep_length_mean:           99.1619	epsilon:                   0.0500	grad_norm:                 1.7850
+loss:                      0.4018	negotiation_agreed_mean:   0.9900	negotiation_optimal_mean:  0.5043	q_taken_mean:              0.5780
+reached_poi_mean:          0.0286	return_mean:               0.8589	return_std:               11.3691	target_mean:               0.5655
+td_error_abs:              0.1803	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  0.6750
+test_negotiation_optimal_mean:  0.2562	test_reached_poi_mean:     0.0000	test_return_mean:         -2.0512	test_return_std:           2.2533
+
+[INFO 15:12:39] my_main Recent Stats | t_env:     225518 | Episode:     2288
+battle_won_mean:           0.0286	ep_length_mean:           97.6857	epsilon:                   0.0500	grad_norm:                 2.4144
+loss:                      0.6668	negotiation_agreed_mean:   0.9905	negotiation_optimal_mean:  0.5733	q_taken_mean:              0.7459
+reached_poi_mean:          0.0286	return_mean:               2.1882	return_std:               14.0588	target_mean:               0.7472
+td_error_abs:              0.1989	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  0.6750
+test_negotiation_optimal_mean:  0.2562	test_reached_poi_mean:     0.0000	test_return_mean:         -2.0512	test_return_std:           2.2533
+
+[INFO 15:15:44] my_main t_env: 250408 / 1000000
+[INFO 15:15:44] my_main Estimated time left: 1 hours, 38 minutes, 17 seconds. Time passed: 32 minutes, 48 seconds
+[INFO 15:16:02] my_main Recent Stats | t_env:     250608 | Episode:     2544
+battle_won_mean:           0.0286	ep_length_mean:           98.7333	epsilon:                   0.0500	grad_norm:                 4.7742
+loss:                      0.8662	negotiation_agreed_mean:   0.9805	negotiation_optimal_mean:  0.5524	q_taken_mean:              0.9342
+reached_poi_mean:          0.0286	return_mean:               1.8117	return_std:               12.5646	target_mean:               0.9191
+td_error_abs:              0.2344	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  0.7625
+test_negotiation_optimal_mean:  0.3438	test_reached_poi_mean:     0.0000	test_return_mean:         -2.0068	test_return_std:           2.1661
+
+[INFO 15:19:15] my_main Recent Stats | t_env:     275669 | Episode:     2804
+battle_won_mean:           0.0654	ep_length_mean:           96.9225	epsilon:                   0.0500	grad_norm:                 3.7826
+loss:                      0.6821	negotiation_agreed_mean:   0.9314	negotiation_optimal_mean:  0.6058	q_taken_mean:              1.1504
+reached_poi_mean:          0.0654	return_mean:               4.9778	return_std:               16.9822	target_mean:               1.1164
+td_error_abs:              0.2382	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  0.7625
+test_negotiation_optimal_mean:  0.3438	test_reached_poi_mean:     0.0000	test_return_mean:         -2.0068	test_return_std:           2.1661
+
+[INFO 15:22:21] my_main t_env: 300436 / 1000000
+[INFO 15:22:21] my_main Estimated time left: 1 hours, 32 minutes, 22 seconds. Time passed: 39 minutes, 25 seconds
+[INFO 15:22:37] my_main Recent Stats | t_env:     300736 | Episode:     3073
+battle_won_mean:           0.1314	ep_length_mean:           91.8763	epsilon:                   0.0500	grad_norm:                 5.5879
+loss:                      0.6522	negotiation_agreed_mean:   0.9818	negotiation_optimal_mean:  0.4964	q_taken_mean:              1.1100
+reached_poi_mean:          0.1314	return_mean:               9.1938	return_std:               27.6373	target_mean:               1.0799
+td_error_abs:              0.2367	test_battle_won_mean:      0.0063	test_ep_length_mean:      99.4313	test_negotiation_agreed_mean:  0.7250
+test_negotiation_optimal_mean:  0.3750	test_reached_poi_mean:     0.0063	test_return_mean:         -0.8861	test_return_std:           5.0049
+
+[INFO 15:25:47] my_main Recent Stats | t_env:     325824 | Episode:     3349
+battle_won_mean:           0.1147	ep_length_mean:           92.5843	epsilon:                   0.0500	grad_norm:                 3.3319
+loss:                      1.3666	negotiation_agreed_mean:   0.9826	negotiation_optimal_mean:  0.4729	q_taken_mean:              1.1712
+reached_poi_mean:          0.1147	return_mean:               9.4306	return_std:               30.0645	target_mean:               1.1928
+td_error_abs:              0.2626	test_battle_won_mean:      0.0063	test_ep_length_mean:      99.4313	test_negotiation_agreed_mean:  0.7250
+test_negotiation_optimal_mean:  0.3750	test_reached_poi_mean:     0.0063	test_return_mean:         -0.8861	test_return_std:           5.0049
+
+[INFO 15:28:54] my_main t_env: 350532 / 1000000
+[INFO 15:28:54] my_main Estimated time left: 1 hours, 24 minutes, 53 seconds. Time passed: 45 minutes, 58 seconds
+[INFO 15:29:09] my_main Recent Stats | t_env:     350832 | Episode:     3627
+battle_won_mean:           0.1709	ep_length_mean:           90.6534	epsilon:                   0.0500	grad_norm:                 5.0349
+loss:                      1.2468	negotiation_agreed_mean:   0.9735	negotiation_optimal_mean:  0.4393	q_taken_mean:              1.2443
+reached_poi_mean:          0.1709	return_mean:              12.2743	return_std:               31.1047	target_mean:               1.2627
+td_error_abs:              0.2726	test_battle_won_mean:      0.0187	test_ep_length_mean:      98.3250	test_negotiation_agreed_mean:  0.7188
+test_negotiation_optimal_mean:  0.4562	test_reached_poi_mean:     0.0187	test_return_mean:          0.4954	test_return_std:           7.5411
+
+[INFO 15:32:06] my_main Recent Stats | t_env:     375883 | Episode:     3910
+battle_won_mean:           0.1805	ep_length_mean:           90.4539	epsilon:                   0.0500	grad_norm:                 4.8890
+loss:                      1.6634	negotiation_agreed_mean:   0.8635	negotiation_optimal_mean:  0.4589	q_taken_mean:              1.4569
+reached_poi_mean:          0.1805	return_mean:              13.7923	return_std:               26.9290	target_mean:               1.4496
+td_error_abs:              0.2966	test_battle_won_mean:      0.0187	test_ep_length_mean:      98.3250	test_negotiation_agreed_mean:  0.7188
+test_negotiation_optimal_mean:  0.4562	test_reached_poi_mean:     0.0187	test_return_mean:          0.4954	test_return_std:           7.5411
+
+[INFO 15:35:03] my_main t_env: 400610 / 1000000
+[INFO 15:35:03] my_main Estimated time left: 1 hours, 13 minutes, 38 seconds. Time passed: 52 minutes, 7 seconds
+[INFO 15:35:18] my_main Recent Stats | t_env:     400894 | Episode:     4189
+battle_won_mean:           0.1148	ep_length_mean:           92.2321	epsilon:                   0.0500	grad_norm:                 6.2857
+loss:                      1.4033	negotiation_agreed_mean:   0.8721	negotiation_optimal_mean:  0.5028	q_taken_mean:              1.4897
+reached_poi_mean:          0.1148	return_mean:              11.3101	return_std:               30.7330	target_mean:               1.4945
+td_error_abs:              0.3196	test_battle_won_mean:      0.0250	test_ep_length_mean:      97.7438	test_negotiation_agreed_mean:  0.6813
+test_negotiation_optimal_mean:  0.4313	test_reached_poi_mean:     0.0250	test_return_mean:          1.2125	test_return_std:          11.0485
+
+[INFO 15:38:30] my_main Recent Stats | t_env:     425934 | Episode:     4477
+battle_won_mean:           0.2032	ep_length_mean:           87.3455	epsilon:                   0.0500	grad_norm:                 3.5691
+loss:                      1.8722	negotiation_agreed_mean:   0.9335	negotiation_optimal_mean:  0.4477	q_taken_mean:              1.6207
+reached_poi_mean:          0.2032	return_mean:              15.6459	return_std:               32.7858	target_mean:               1.6108
+td_error_abs:              0.3125	test_battle_won_mean:      0.0250	test_ep_length_mean:      97.7438	test_negotiation_agreed_mean:  0.6813
+test_negotiation_optimal_mean:  0.4313	test_reached_poi_mean:     0.0250	test_return_mean:          1.2125	test_return_std:          11.0485
+
+[INFO 15:41:34] my_main t_env: 450669 / 1000000
+[INFO 15:41:34] my_main Estimated time left: 1 hours, 11 minutes, 29 seconds. Time passed: 58 minutes, 38 seconds
+[INFO 15:41:48] my_main Recent Stats | t_env:     450934 | Episode:     4785
+battle_won_mean:           0.3382	ep_length_mean:           78.8579	epsilon:                   0.0500	grad_norm:                 7.5094
+loss:                      1.4932	negotiation_agreed_mean:   0.9524	negotiation_optimal_mean:  0.4401	q_taken_mean:              1.7985
+reached_poi_mean:          0.3382	return_mean:              26.0795	return_std:               42.3876	target_mean:               1.7804
+td_error_abs:              0.3373	test_battle_won_mean:      0.0563	test_ep_length_mean:      95.0125	test_negotiation_agreed_mean:  0.6687
+test_negotiation_optimal_mean:  0.3875	test_reached_poi_mean:     0.0563	test_return_mean:          3.8685	test_return_std:          17.2567
+
+[INFO 15:44:53] my_main Recent Stats | t_env:     475952 | Episode:     5075
+battle_won_mean:           0.2370	ep_length_mean:           87.0890	epsilon:                   0.0500	grad_norm:                 6.4079
+loss:                      1.6985	negotiation_agreed_mean:   0.9159	negotiation_optimal_mean:  0.3870	q_taken_mean:              1.8251
+reached_poi_mean:          0.2370	return_mean:              20.4296	return_std:               37.5460	target_mean:               1.7874
+td_error_abs:              0.3565	test_battle_won_mean:      0.0563	test_ep_length_mean:      95.0125	test_negotiation_agreed_mean:  0.6687
+test_negotiation_optimal_mean:  0.3875	test_reached_poi_mean:     0.0563	test_return_mean:          3.8685	test_return_std:          17.2567
+
+[INFO 15:47:42] my_main Saving models to /home/aid26006/thesslink-rl/results/models/qmix_seed239942344_thesslink_rl:thesslink/GridNegotiation-v1_2026-04-13 14:42:54.160851/500144
+[INFO 15:47:46] my_main t_env: 500757 / 1000000
+[INFO 15:47:46] my_main Estimated time left: 1 hours, 1 minutes, 54 seconds. Time passed: 1 hours, 4 minutes, 50 seconds
+[INFO 15:48:03] my_main Recent Stats | t_env:     500957 | Episode:     5376
+battle_won_mean:           0.3083	ep_length_mean:           83.2993	epsilon:                   0.0500	grad_norm:                 6.4014
+loss:                      1.4986	negotiation_agreed_mean:   0.8692	negotiation_optimal_mean:  0.3665	q_taken_mean:              1.9178
+reached_poi_mean:          0.3083	return_mean:              25.3653	return_std:               40.0480	target_mean:               1.8914
+td_error_abs:              0.3517	test_battle_won_mean:      0.0625	test_ep_length_mean:      94.4562	test_negotiation_agreed_mean:  0.6438
+test_negotiation_optimal_mean:  0.3500	test_reached_poi_mean:     0.0625	test_return_mean:          4.0276	test_return_std:          18.4342
+
+[INFO 15:51:13] my_main Recent Stats | t_env:     526011 | Episode:     5690
+battle_won_mean:           0.3229	ep_length_mean:           78.3093	epsilon:                   0.0500	grad_norm:                 4.7607
+loss:                      1.1100	negotiation_agreed_mean:   0.8914	negotiation_optimal_mean:  0.5204	q_taken_mean:              1.8657
+reached_poi_mean:          0.3229	return_mean:              28.5009	return_std:               42.3720	target_mean:               1.8698
+td_error_abs:              0.3292	test_battle_won_mean:      0.0625	test_ep_length_mean:      94.4562	test_negotiation_agreed_mean:  0.6438
+test_negotiation_optimal_mean:  0.3500	test_reached_poi_mean:     0.0625	test_return_mean:          4.0276	test_return_std:          18.4342
+
+[INFO 15:54:21] my_main t_env: 550843 / 1000000
+[INFO 15:54:21] my_main Estimated time left: 58 minutes, 54 seconds. Time passed: 1 hours, 11 minutes, 24 seconds
+[INFO 15:54:35] my_main Recent Stats | t_env:     551077 | Episode:     6032
+battle_won_mean:           0.4000	ep_length_mean:           71.4640	epsilon:                   0.0500	grad_norm:                 7.7925
+loss:                      2.0372	negotiation_agreed_mean:   0.8996	negotiation_optimal_mean:  0.4820	q_taken_mean:              2.3940
+reached_poi_mean:          0.4000	return_mean:              34.3513	return_std:               46.1152	target_mean:               2.4321
+td_error_abs:              0.4013	test_battle_won_mean:      0.1062	test_ep_length_mean:      90.5375	test_negotiation_agreed_mean:  0.6125
+test_negotiation_optimal_mean:  0.3312	test_reached_poi_mean:     0.1062	test_return_mean:          8.1363	test_return_std:          23.2663
+
+[INFO 15:58:09] my_main Recent Stats | t_env:     576175 | Episode:     6439
+battle_won_mean:           0.5890	ep_length_mean:           57.1049	epsilon:                   0.0500	grad_norm:                 6.2706
+loss:                      1.2684	negotiation_agreed_mean:   0.9771	negotiation_optimal_mean:  0.4326	q_taken_mean:              2.2211
+reached_poi_mean:          0.5890	return_mean:              48.1029	return_std:               48.6835	target_mean:               2.2029
+td_error_abs:              0.3878	test_battle_won_mean:      0.1062	test_ep_length_mean:      90.5375	test_negotiation_agreed_mean:  0.6125
+test_negotiation_optimal_mean:  0.3312	test_reached_poi_mean:     0.1062	test_return_mean:          8.1363	test_return_std:          23.2663
+
+[INFO 16:01:42] my_main t_env: 600852 / 1000000
+[INFO 16:01:42] my_main Estimated time left: 58 minutes, 44 seconds. Time passed: 1 hours, 18 minutes, 46 seconds
+[INFO 16:01:54] my_main Recent Stats | t_env:     601189 | Episode:     6886
+battle_won_mean:           0.6001	ep_length_mean:           53.1829	epsilon:                   0.0500	grad_norm:                12.4196
+loss:                      1.5925	negotiation_agreed_mean:   0.9579	negotiation_optimal_mean:  0.4750	q_taken_mean:              2.9919
+reached_poi_mean:          0.6001	return_mean:              50.8684	return_std:               49.0379	target_mean:               3.0053
+td_error_abs:              0.4861	test_battle_won_mean:      0.1812	test_ep_length_mean:      83.7812	test_negotiation_agreed_mean:  0.6125
+test_negotiation_optimal_mean:  0.3000	test_reached_poi_mean:     0.1812	test_return_mean:         14.9746	test_return_std:          29.9693
+
+[INFO 16:05:47] my_main Recent Stats | t_env:     626232 | Episode:     7389
+battle_won_mean:           0.6442	ep_length_mean:           49.5248	epsilon:                   0.0500	grad_norm:                12.9205
+loss:                      2.0315	negotiation_agreed_mean:   0.9694	negotiation_optimal_mean:  0.4425	q_taken_mean:              3.2453
+reached_poi_mean:          0.6442	return_mean:              52.4440	return_std:               48.6686	target_mean:               3.2666
+td_error_abs:              0.5379	test_battle_won_mean:      0.1812	test_ep_length_mean:      83.7812	test_negotiation_agreed_mean:  0.6125
+test_negotiation_optimal_mean:  0.3000	test_reached_poi_mean:     0.1812	test_return_mean:         14.9746	test_return_std:          29.9693
+
+[INFO 16:09:38] my_main t_env: 650873 / 1000000
+[INFO 16:09:38] my_main Estimated time left: 55 minutes, 21 seconds. Time passed: 1 hours, 26 minutes, 42 seconds
+[INFO 16:09:51] my_main Recent Stats | t_env:     651290 | Episode:     7932
+battle_won_mean:           0.6829	ep_length_mean:           46.8329	epsilon:                   0.0500	grad_norm:                10.9514
+loss:                      2.1568	negotiation_agreed_mean:   0.9958	negotiation_optimal_mean:  0.4686	q_taken_mean:              3.4800
+reached_poi_mean:          0.6829	return_mean:              53.5665	return_std:               48.2310	target_mean:               3.5254
+td_error_abs:              0.5643	test_battle_won_mean:      0.2687	test_ep_length_mean:      76.0375	test_negotiation_agreed_mean:  0.7312
+test_negotiation_optimal_mean:  0.3375	test_reached_poi_mean:     0.2687	test_return_mean:         20.9208	test_return_std:          35.0434
+
+[INFO 16:14:06] my_main Recent Stats | t_env:     676335 | Episode:     8511
+battle_won_mean:           0.7399	ep_length_mean:           42.8887	epsilon:                   0.0500	grad_norm:                25.7439
+loss:                      2.3751	negotiation_agreed_mean:   0.9817	negotiation_optimal_mean:  0.4991	q_taken_mean:              4.0272
+reached_poi_mean:          0.7399	return_mean:              60.4885	return_std:               47.1930	target_mean:               4.0434
+td_error_abs:              0.6566	test_battle_won_mean:      0.2687	test_ep_length_mean:      76.0375	test_negotiation_agreed_mean:  0.7312
+test_negotiation_optimal_mean:  0.3375	test_reached_poi_mean:     0.2687	test_return_mean:         20.9208	test_return_std:          35.0434
+
+[INFO 16:17:55] my_main t_env: 700878 / 1000000
+[INFO 16:17:55] my_main Estimated time left: 49 minutes, 31 seconds. Time passed: 1 hours, 34 minutes, 59 seconds
+[INFO 16:18:09] my_main Recent Stats | t_env:     701397 | Episode:     9023
+battle_won_mean:           0.6741	ep_length_mean:           45.8893	epsilon:                   0.0500	grad_norm:                19.9776
+loss:                      2.1128	negotiation_agreed_mean:   0.9650	negotiation_optimal_mean:  0.4603	q_taken_mean:              4.4156
+reached_poi_mean:          0.6741	return_mean:              54.5694	return_std:               46.6371	target_mean:               4.4607
+td_error_abs:              0.6766	test_battle_won_mean:      0.3312	test_ep_length_mean:      70.4750	test_negotiation_agreed_mean:  0.7625
+test_negotiation_optimal_mean:  0.3312	test_reached_poi_mean:     0.3312	test_return_mean:         24.6633	test_return_std:          36.8911
+
+[INFO 16:22:09] my_main Recent Stats | t_env:     726454 | Episode:     9591
+battle_won_mean:           0.6869	ep_length_mean:           47.9254	epsilon:                   0.0500	grad_norm:                23.4321
+loss:                      2.4418	negotiation_agreed_mean:   0.9951	negotiation_optimal_mean:  0.4461	q_taken_mean:              5.4455
+reached_poi_mean:          0.6869	return_mean:              55.2981	return_std:               47.7544	target_mean:               5.4138
+td_error_abs:              0.7390	test_battle_won_mean:      0.3312	test_ep_length_mean:      70.4750	test_negotiation_agreed_mean:  0.7625
+test_negotiation_optimal_mean:  0.3312	test_reached_poi_mean:     0.3312	test_return_mean:         24.6633	test_return_std:          36.8911
+
+[INFO 16:26:26] my_main t_env: 750935 / 1000000
+[INFO 16:26:26] my_main Estimated time left: 42 minutes, 22 seconds. Time passed: 1 hours, 43 minutes, 30 seconds
+[INFO 16:26:46] my_main Recent Stats | t_env:     751481 | Episode:    10098
+battle_won_mean:           0.5948	ep_length_mean:           53.3985	epsilon:                   0.0500	grad_norm:                26.0760
+loss:                      2.4208	negotiation_agreed_mean:   1.0000	negotiation_optimal_mean:  0.5189	q_taken_mean:              5.5618
+reached_poi_mean:          0.5948	return_mean:              51.6733	return_std:               50.3607	target_mean:               5.6418
+td_error_abs:              0.6926	test_battle_won_mean:      0.3875	test_ep_length_mean:      65.4375	test_negotiation_agreed_mean:  0.8875
+test_negotiation_optimal_mean:  0.3563	test_reached_poi_mean:     0.3875	test_return_mean:         28.8845	test_return_std:          43.6933
+
+[INFO 16:30:47] my_main Recent Stats | t_env:     776500 | Episode:    10497
+battle_won_mean:           0.4572	ep_length_mean:           65.8490	epsilon:                   0.0500	grad_norm:                26.0819
+loss:                      2.5745	negotiation_agreed_mean:   0.9688	negotiation_optimal_mean:  0.5701	q_taken_mean:              6.3307
+reached_poi_mean:          0.4572	return_mean:              43.3864	return_std:               50.8548	target_mean:               6.3068
+td_error_abs:              0.7403	test_battle_won_mean:      0.3875	test_ep_length_mean:      65.4375	test_negotiation_agreed_mean:  0.8875
+test_negotiation_optimal_mean:  0.3563	test_reached_poi_mean:     0.3875	test_return_mean:         28.8845	test_return_std:          43.6933
+
+[INFO 16:34:45] my_main t_env: 800958 / 1000000
+[INFO 16:34:45] my_main Estimated time left: 33 minutes, 5 seconds. Time passed: 1 hours, 51 minutes, 49 seconds
+[INFO 16:35:06] my_main Recent Stats | t_env:     801542 | Episode:    10894
+battle_won_mean:           0.5030	ep_length_mean:           64.0287	epsilon:                   0.0500	grad_norm:                30.3826
+loss:                      2.3658	negotiation_agreed_mean:   0.9879	negotiation_optimal_mean:  0.5185	q_taken_mean:              5.8356
+reached_poi_mean:          0.5030	return_mean:              44.0045	return_std:               48.2419	target_mean:               5.9042
+td_error_abs:              0.7007	test_battle_won_mean:      0.3812	test_ep_length_mean:      66.0563	test_negotiation_agreed_mean:  0.9563
+test_negotiation_optimal_mean:  0.4125	test_reached_poi_mean:     0.3812	test_return_mean:         28.5966	test_return_std:          43.7626
+
