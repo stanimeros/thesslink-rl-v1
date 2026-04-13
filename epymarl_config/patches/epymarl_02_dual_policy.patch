@@ -69,7 +69,7 @@ diff --git a/src/envs/gymma.py b/src/envs/gymma.py
 index c452bc6..c1b218b 100644
 --- a/src/envs/gymma.py
 +++ b/src/envs/gymma.py
-@@ -161,3 +161,17 @@ class GymmaWrapper(MultiAgentEnv):
+@@ -161,3 +161,18 @@ class GymmaWrapper(MultiAgentEnv):
  
      def get_stats(self):
          return {}
