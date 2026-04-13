@@ -325,3 +325,44 @@ reached_poi_mean:          0.0190	return_mean:               5.5095	return_std: 
 td_error_abs:              0.1215	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  1.0000
 test_negotiation_optimal_mean:  0.3438	test_reached_poi_mean:     0.0000	test_return_mean:          4.5887	test_return_std:           3.2234
 
+[INFO 14:14:07] my_main t_env: 751106 / 1000000
+[INFO 14:14:07] my_main Estimated time left: 33 minutes, 3 seconds. Time passed: 1 hours, 41 minutes, 15 seconds
+[INFO 14:14:26] my_main Recent Stats | t_env:     751406 | Episode:     7536
+battle_won_mean:           0.0000	ep_length_mean:          100.0000	epsilon:                   0.0500	grad_norm:                 1.2784
+loss:                      0.1316	negotiation_agreed_mean:   1.0000	negotiation_optimal_mean:  0.3300	q_taken_mean:             -0.5936
+reached_poi_mean:          0.0000	return_mean:               4.4296	return_std:                3.1559	target_mean:              -0.6027
+td_error_abs:              0.1395	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  1.0000
+test_negotiation_optimal_mean:  0.3438	test_reached_poi_mean:     0.0000	test_return_mean:          4.4820	test_return_std:           3.2234
+
+[INFO 14:17:28] my_main Recent Stats | t_env:     776436 | Episode:     7787
+battle_won_mean:           0.0000	ep_length_mean:          100.0000	epsilon:                   0.0500	grad_norm:                 0.8314
+loss:                      0.0797	negotiation_agreed_mean:   1.0000	negotiation_optimal_mean:  0.3400	q_taken_mean:             -0.6708
+reached_poi_mean:          0.0000	return_mean:               4.3601	return_std:                3.3165	target_mean:              -0.6639
+td_error_abs:              0.1168	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  1.0000
+test_negotiation_optimal_mean:  0.3438	test_reached_poi_mean:     0.0000	test_return_mean:          4.4820	test_return_std:           3.2234
+
+[INFO 14:20:25] my_main t_env: 801150 / 1000000
+[INFO 14:20:25] my_main Estimated time left: 25 minutes, 0 seconds. Time passed: 1 hours, 47 minutes, 32 seconds
+[INFO 14:20:42] my_main Recent Stats | t_env:     801450 | Episode:     8038
+battle_won_mean:           0.0095	ep_length_mean:           99.1810	epsilon:                   0.0500	grad_norm:                 2.5181
+loss:                      0.5877	negotiation_agreed_mean:   1.0000	negotiation_optimal_mean:  0.3357	q_taken_mean:             -0.6370
+reached_poi_mean:          0.0095	return_mean:               4.6198	return_std:                3.2267	target_mean:              -0.6342
+td_error_abs:              0.1458	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  1.0000
+test_negotiation_optimal_mean:  0.3187	test_reached_poi_mean:     0.0000	test_return_mean:          4.2198	test_return_std:           3.2303
+
+[INFO 14:23:48] my_main Recent Stats | t_env:     826450 | Episode:     8288
+battle_won_mean:           0.0000	ep_length_mean:          100.0000	epsilon:                   0.0500	grad_norm:                 0.9880
+loss:                      0.1045	negotiation_agreed_mean:   1.0000	negotiation_optimal_mean:  0.3900	q_taken_mean:             -0.6532
+reached_poi_mean:          0.0000	return_mean:               4.6653	return_std:                3.2648	target_mean:              -0.6604
+td_error_abs:              0.1137	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  1.0000
+test_negotiation_optimal_mean:  0.3187	test_reached_poi_mean:     0.0000	test_return_mean:          4.2198	test_return_std:           3.2303
+
+[INFO 14:27:02] my_main t_env: 851150 / 1000000
+[INFO 14:27:02] my_main Estimated time left: 19 minutes, 43 seconds. Time passed: 1 hours, 54 minutes, 10 seconds
+[INFO 14:27:20] my_main Recent Stats | t_env:     851450 | Episode:     8538
+battle_won_mean:           0.0000	ep_length_mean:          100.0000	epsilon:                   0.0500	grad_norm:                 0.6771
+loss:                      0.0820	negotiation_agreed_mean:   0.9900	negotiation_optimal_mean:  0.3400	q_taken_mean:             -0.6815
+reached_poi_mean:          0.0000	return_mean:               4.6313	return_std:                3.0167	target_mean:              -0.6817
+td_error_abs:              0.1008	test_battle_won_mean:      0.0000	test_ep_length_mean:     100.0000	test_negotiation_agreed_mean:  0.9688
+test_negotiation_optimal_mean:  0.3000	test_reached_poi_mean:     0.0000	test_return_mean:          3.9245	test_return_std:           3.2602
+
