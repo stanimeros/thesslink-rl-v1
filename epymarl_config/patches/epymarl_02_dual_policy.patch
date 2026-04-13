@@ -76,13 +76,17 @@ index c452bc6..c1b218b 100644
 +
 +    def get_env_info(self):
 +        env_info = super().get_env_info()
-+        if hasattr(self._env.unwrapped, "get_policy_branch"):
++        if getattr(self._env.unwrapped, "epymarl_dual_policy", False):
 +            env_info["use_dual_policy"] = True
 +        return env_info
 +
 +    def get_policy_branch(self):
-+        """0 = negotiation, 1 = navigation (ThessLink v3+)."""
-+        return int(self._env.unwrapped.get_policy_branch())
++        """ThessLink v3+: 0 = negotiate, 1 = navigate; single-policy envs → 0."""
++        u = self._env.unwrapped
++        fn = getattr(u, "get_policy_branch", None)
++        if callable(fn):
++            return int(fn())
++        return 0
 diff --git a/src/modules/agents/__init__.py b/src/modules/agents/__init__.py
 index d159175..8085f05 100644
 --- a/src/modules/agents/__init__.py

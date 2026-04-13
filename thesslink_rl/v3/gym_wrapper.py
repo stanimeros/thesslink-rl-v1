@@ -52,6 +52,7 @@ class GridNegotiationGymEnv(gym.Env):
     """Gymnasium wrapper around GridNegotiationEnv (v3) for EPyMARL."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
+    epymarl_dual_policy = True
 
     def __init__(
         self,

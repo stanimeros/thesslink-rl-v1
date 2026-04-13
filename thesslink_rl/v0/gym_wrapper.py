@@ -41,6 +41,8 @@ class GridNegotiationGymEnv(gym.Env):
     """Gymnasium wrapper around GridNegotiationEnv for EPyMARL."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
+    # Only v3 uses EPyMARL dual MAC; parallel runner still calls GymmaWrapper.get_policy_branch.
+    epymarl_dual_policy = False
 
     def __init__(
         self,
@@ -85,10 +87,6 @@ class GridNegotiationGymEnv(gym.Env):
         self._optimal_poi: int = 0
         self._prev_dist: Dict[str, float] = {}
         self._nav_steps: int = 0
-
-    def get_policy_branch(self) -> int:
-        """Index for dual-policy training: 0 = negotiation, 1 = navigation."""
-        return 0 if self._env.phase == "negotiation" else 1
 
     def _flatten_obs(self, obs_dict: Dict[str, np.ndarray]) -> np.ndarray:
         """Concatenate the unified obs dict into a flat vector of size OBS_FLAT_SIZE."""

@@ -34,6 +34,7 @@ class GridNegotiationGymEnv(gym.Env):
     """Gymnasium wrapper around GridNegotiationEnv (v1) for EPyMARL."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
+    epymarl_dual_policy = False
 
     def __init__(
         self,
@@ -76,10 +77,6 @@ class GridNegotiationGymEnv(gym.Env):
         self._poi_scores: Dict[str, np.ndarray] = {}
         self._agreed_poi: int | None = None
         self._optimal_poi: int = 0
-
-    def get_policy_branch(self) -> int:
-        """Index for dual-policy training: 0 = negotiation, 1 = navigation."""
-        return 0 if self._env.phase == "negotiation" else 1
 
     def reset(
         self, seed: int | None = None, options: dict | None = None

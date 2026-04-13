@@ -52,10 +52,10 @@ EPYMARL_SRC = PROJECT / "epymarl" / "src"
 RESULTS_DIR = PROJECT / "epymarl" / "results"
 PLOTS_DIR = PROJECT / "plots"
 
-T_MAX = 4_000
-TEST_INTERVAL = 1_000
-LOG_INTERVAL = 1_000
-SAVE_MODEL_INTERVAL = 1_000
+T_MAX = 1000
+LOG_INTERVAL = 50
+TEST_INTERVAL = 250
+SAVE_MODEL_INTERVAL = 500
 
 # Same set and reward convention as train.sh (algo_extra_args).
 SMOKE_ALGOS = ("iql", "qmix", "vdn", "mappo", "coma")
