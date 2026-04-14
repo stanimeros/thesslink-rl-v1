@@ -316,6 +316,10 @@ def rollout_episode_frames_for_gif(
         scheme["reward"] = {"vshape": (1,)}
     else:
         scheme["reward"] = {"vshape": (args.n_agents,)}
+    if env_info.get("use_dual_policy"):
+        scheme["policy_branch"] = {"vshape": (1,), "dtype": th.long}
+        args.mac = "dual_basic_mac"
+        args.agent = "dual_rnn"
     groups = {"agents": args.n_agents}
     preprocess = {"actions": ("actions_onehot", [OneHot(out_dim=args.n_actions)])}
 
@@ -350,6 +354,8 @@ def rollout_episode_frames_for_gif(
             "avail_actions": [runner.env.get_avail_actions()],
             "obs": [runner.env.get_obs()],
         }
+        if "policy_branch" in scheme:
+            pre_transition_data["policy_branch"] = [[runner.env.get_policy_branch()]]
         runner.batch.update(pre_transition_data, ts=runner.t)
 
         actions = runner.mac.select_actions(
@@ -391,6 +397,8 @@ def rollout_episode_frames_for_gif(
             "avail_actions": [runner.env.get_avail_actions()],
             "obs": [runner.env.get_obs()],
         }
+        if "policy_branch" in scheme:
+            last_data["policy_branch"] = [[runner.env.get_policy_branch()]]
         runner.batch.update(last_data, ts=runner.t)
 
         actions = runner.mac.select_actions(
