@@ -43,7 +43,7 @@
       ]
     ]
   },
-  "heartbeat": "2026-04-13T21:52:51.336655",
+  "heartbeat": "2026-04-15T16:48:49.314823",
   "host": {
     "ENV": {},
     "cpu": "Intel(R) Core(TM) i9-10900K CPU @ 3.70GHz",
@@ -72,7 +72,7 @@
       "log_interval": 20000,
       "save_model": true,
       "save_model_interval": 400000,
-      "t_max": 1000000,
+      "t_max": 2000000,
       "test_interval": 50000
     },
     "named_configs": [],
@@ -104,7 +104,7 @@
         "log_interval=20000",
         "test_interval=50000",
         "save_model_interval=400000",
-        "t_max=1000000",
+        "t_max=2000000",
         "common_reward=False"
       ],
       "help": false,
@@ -113,7 +113,6 @@
   },
   "resources": [],
   "result": null,
-  "start_time": "2026-04-13T18:33:58.769031",
-  "status": "COMPLETED",
-  "stop_time": "2026-04-13T21:52:51.314565"
+  "start_time": "2026-04-15T05:55:46.957017",
+  "status": "RUNNING"
 }
