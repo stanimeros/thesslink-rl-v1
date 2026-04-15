@@ -393,16 +393,16 @@ def _resolve_env_version(cli_env: int | None) -> int:
         return cli_env
     if sys.stdin.isatty():
         while True:
-            raw = input("ThessLink env version [0-3]: ").strip()
+            raw = input("ThessLink env version [0-2]: ").strip()
             try:
                 v = int(raw)
-                if v in (0, 1, 2, 3):
+                if v in (0, 1, 2):
                     return v
             except ValueError:
                 pass
-            print("  Enter 0, 1, 2, or 3.", file=sys.stderr)
+            print("  Enter 0, 1, or 2.", file=sys.stderr)
     print(
-        "Error: pass --env 0..3 (non-interactive).",
+        "Error: pass --env 0..2 (non-interactive).",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -413,10 +413,10 @@ def main():
     parser.add_argument(
         "--env",
         type=int,
-        choices=[0, 1, 2, 3],
+        choices=[0, 1, 2],
         default=None,
         metavar="N",
-        help="ThessLink env version (0–3). If omitted, prompted when stdin is a TTY.",
+        help="ThessLink env version (0–2). If omitted, prompted when stdin is a TTY.",
     )
     args = parser.parse_args()
 

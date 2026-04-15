@@ -3,8 +3,8 @@
 # ThessLink RL -- Parallel training launcher
 #
 # Usage:
-#   ./train.sh --env 3    # IQL, QMIX, VDN, MAPPO, COMA on ThessLink v3
-#   ./train.sh # prompts for env version [0-3] if stdin is a TTY
+#   ./train.sh --env 2    # IQL, QMIX, VDN, MAPPO, COMA on ThessLink v2
+#   ./train.sh # prompts for env version [0-2] if stdin is a TTY
 #   ./train.sh --status   # live dashboard (watch -n 2; Ctrl+C to stop)
 #   ./train.sh --kill     # kill all running training processes
 #
@@ -112,7 +112,7 @@ show_status() {
     echo ""
     local any_v=false
     local vd
-    for vn in 0 1 2 3; do
+    for vn in 0 1 2; do
         vd="$LOGS_ROOT/v${vn}"
         [[ -d "$vd" ]] || continue
         any_v=true
@@ -164,17 +164,17 @@ fi
 
 if [[ -z "${THESSLINK_ENV_VERSION:-}" ]]; then
     if [[ -t 0 ]]; then
-        read -r -p "ThessLink env version [0-3]: " THESSLINK_ENV_VERSION
+        read -r -p "ThessLink env version [0-2]: " THESSLINK_ENV_VERSION
     else
-        err "Env version required: ./train.sh --env 3 …, or export THESSLINK_ENV_VERSION=3"
+        err "Env version required: ./train.sh --env 0/1/2 …, or export THESSLINK_ENV_VERSION={0,1,2}"
         exit 1
     fi
 fi
 
 case "${THESSLINK_ENV_VERSION}" in
-    0|1|2|3) ;;
+    0|1|2) ;;
     *)
-        err "Invalid env version: ${THESSLINK_ENV_VERSION} (expected 0-3)"
+        err "Invalid env version: ${THESSLINK_ENV_VERSION} (expected 0-2)"
         exit 1
         ;;
 esac
@@ -324,4 +324,4 @@ done
 echo ""
 log "Monitor with:  ./train.sh --status"
 log "Kill all with: ./train.sh --kill"
-log "Tail a log:    tail -f $LOGS_ROOT/v<0-3>/<algo>.log"
+log "Tail a log:    tail -f $LOGS_ROOT/v<0-2>/<algo>.log"

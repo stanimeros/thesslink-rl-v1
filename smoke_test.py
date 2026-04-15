@@ -26,17 +26,17 @@ def _ensure_env_version_for_smoke() -> None:
         return
     if sys.stdin.isatty():
         while True:
-            raw = input("ThessLink env version [0-3]: ").strip()
+            raw = input("ThessLink env version [0-2]: ").strip()
             try:
                 v = int(raw)
-                if v in (0, 1, 2, 3):
+                if v in (0, 1, 2):
                     os.environ["THESSLINK_ENV_VERSION"] = str(v)
                     return
             except ValueError:
                 pass
-            print("  Enter 0, 1, 2, or 3.", file=sys.stderr)
+            print("  Enter 0, 1, or 2.", file=sys.stderr)
     print(
-        "Error: set THESSLINK_ENV_VERSION=0..3 or run via train.sh.",
+        "Error: set THESSLINK_ENV_VERSION=0..2 or run via train.sh.",
         file=sys.stderr,
     )
     sys.exit(1)
