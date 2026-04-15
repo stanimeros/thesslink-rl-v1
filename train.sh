@@ -3,8 +3,10 @@
 # ThessLink RL -- Parallel training launcher
 #
 # Usage:
-#   ./train.sh --env 2    # IQL, QMIX, VDN, MAPPO, COMA on ThessLink v2
-#   ./train.sh # prompts for env version [0-2] if stdin is a TTY
+#   ./train.sh --env 2        # IQL, QMIX, VDN, MAPPO, COMA on ThessLink v2
+#   ./train.sh --env v3_neg   # negotiation-only split environment
+#   ./train.sh --env v3_nav   # navigation-only split environment
+#   ./train.sh # prompts for env selector [0,1,2,v3_neg,v3_nav] if stdin is a TTY
 #   ./train.sh --status   # live dashboard (watch -n 2; Ctrl+C to stop)
 #   ./train.sh --kill     # kill all running training processes
 #
@@ -46,7 +48,7 @@ print(' '.join(mod.TRAINING_ALGOS))
 read -r -a ALL_ALGOS <<< "$(_training_algos_words)"
 
 RESULTS_DIR="epymarl/results"
-# Absolute base; per-run nohup logs live in logs/v<N>/ (set after ENV_VERSION is known).
+# Absolute base; per-run nohup logs live in logs/<env-label>/.
 RESULTS_DIR_ABS="$SCRIPT_DIR/$RESULTS_DIR"
 LOGS_ROOT="$RESULTS_DIR_ABS/logs"
 EPYMARL_SRC="epymarl/src"
@@ -65,10 +67,10 @@ kill_training() {
 
 prepare_results_tree() {
     local phase="$1"
-    local ver="${ENV_VERSION:-$THESSLINK_ENV_VERSION}"
+    local label="${ENV_LABEL:-${THESSLINK_ENV:-${THESSLINK_ENV_VERSION:-unknown}}}"
     log "Wiping all training outputs ($phase): $RESULTS_DIR/{sacred,models,logs}"
     rm -rf "$RESULTS_DIR_ABS/sacred" "$RESULTS_DIR_ABS/models" "$RESULTS_DIR_ABS/logs"
-    mkdir -p "$RESULTS_DIR_ABS/sacred" "$RESULTS_DIR_ABS/models" "$LOGS_ROOT/v${ver}"
+    mkdir -p "$RESULTS_DIR_ABS/sacred" "$RESULTS_DIR_ABS/models" "$LOGS_ROOT/${label}"
 }
 
 _status_table_for_logs_dir() {
@@ -112,11 +114,11 @@ show_status() {
     echo ""
     local any_v=false
     local vd
-    for vn in 0 1 2; do
-        vd="$LOGS_ROOT/v${vn}"
+    for vd in "$LOGS_ROOT"/*; do
+        [[ -d "$vd" ]] || continue
         [[ -d "$vd" ]] || continue
         any_v=true
-        echo "=== $(basename "$LOGS_ROOT")/$(basename "$vd") (ThessLink env v$(basename "$vd" | sed 's/^v//')) ==="
+        echo "=== $(basename "$LOGS_ROOT")/$(basename "$vd") ==="
         _status_table_for_logs_dir "$vd"
         echo ""
     done
@@ -156,29 +158,33 @@ if [[ "${1:-}" == "--kill" ]]; then
     exit 0
 fi
 
-# Env version for this run (exports THESSLINK_ENV_VERSION for config.py + smoke_test).
+# Env selector for this run (exports THESSLINK_ENV for config.py + smoke_test).
 if [[ "${1:-}" == "--env" && -n "${2:-}" ]]; then
-    export THESSLINK_ENV_VERSION="$2"
+    export THESSLINK_ENV="$2"
     shift 2
 fi
 
-if [[ -z "${THESSLINK_ENV_VERSION:-}" ]]; then
+if [[ -z "${THESSLINK_ENV:-}" && -z "${THESSLINK_ENV_VERSION:-}" ]]; then
     if [[ -t 0 ]]; then
-        read -r -p "ThessLink env version [0-2]: " THESSLINK_ENV_VERSION
+        read -r -p "ThessLink env selector [0,1,2,v3_neg,v3_nav]: " THESSLINK_ENV
     else
-        err "Env version required: ./train.sh --env 0/1/2 …, or export THESSLINK_ENV_VERSION={0,1,2}"
+        err "Env selector required: ./train.sh --env <0|1|2|v3_neg|v3_nav> or export THESSLINK_ENV."
         exit 1
     fi
 fi
 
-case "${THESSLINK_ENV_VERSION}" in
-    0|1|2) ;;
+if [[ -z "${THESSLINK_ENV:-}" && -n "${THESSLINK_ENV_VERSION:-}" ]]; then
+    THESSLINK_ENV="${THESSLINK_ENV_VERSION}"
+fi
+
+case "${THESSLINK_ENV}" in
+    0|1|2|v3_neg|v3_nav) ;;
     *)
-        err "Invalid env version: ${THESSLINK_ENV_VERSION} (expected 0-2)"
+        err "Invalid env selector: ${THESSLINK_ENV} (expected 0|1|2|v3_neg|v3_nav)"
         exit 1
         ;;
 esac
-export THESSLINK_ENV_VERSION
+export THESSLINK_ENV
 
 if [[ $# -gt 0 ]]; then
     err "This script always trains all algorithms (${ALL_ALGOS[*]}). Remove extra arguments: $*"
@@ -211,11 +217,12 @@ pip install -r requirements.txt
 eval "$(python3 <<'PY'
 import config
 print(f"export ENV_VERSION={config.ENV_VERSION}")
+print(f"export ENV_LABEL={config.ENV_LABEL!r}")
 print(f"export ENV_CONFIG={config.ENV_CONFIG!r}")
 PY
 )"
 
-log "Environment version: v${ENV_VERSION} (env-config=${ENV_CONFIG})"
+log "Environment: ${ENV_LABEL} (env-config=${ENV_CONFIG})"
 
 # ── EPyMARL ──────────────────────────────────────────────────────────────
 
@@ -282,7 +289,7 @@ fi
 
 prepare_results_tree "after smoke — full multi-algo training"
 
-LOGS_DIR="$LOGS_ROOT/v${ENV_VERSION}"
+LOGS_DIR="$LOGS_ROOT/${ENV_LABEL}"
 mkdir -p "$LOGS_DIR"
 
 # ── Launch training ──────────────────────────────────────────────────────
@@ -324,4 +331,4 @@ done
 echo ""
 log "Monitor with:  ./train.sh --status"
 log "Kill all with: ./train.sh --kill"
-log "Tail a log:    tail -f $LOGS_ROOT/v<0-2>/<algo>.log"
+log "Tail a log:    tail -f $LOGS_ROOT/<0|1|2|v3_neg|v3_nav>/<algo>.log"

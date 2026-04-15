@@ -10,7 +10,7 @@ With results: ``training_curves-all.png`` (all algorithms), **one** shared
 **best** checkpoint under ``results/models``.
 
 Usage:
-    python visualize.py --env 3
+    python visualize.py --env v3_neg
 """
 
 from __future__ import annotations
@@ -71,9 +71,9 @@ def discover_runs(results_dir: Path) -> dict[str, dict]:
     Checks repo ``results/`` first, then ``epymarl/results/`` (EPyMARL default if
     ``local_results_path`` was not set to repo root).
     """
-    from config import ENV_VERSION
+    from config import ENV_SACRED_MARKER
 
-    version_marker = f"GridNegotiation-v{ENV_VERSION}"
+    version_marker = ENV_SACRED_MARKER
     bases = (results_dir, EPYMARL_DIR / "results")
     if not any((b / "sacred").is_dir() for b in bases):
         print(
@@ -283,7 +283,7 @@ def generate_heatmaps_and_replays(
     Episode GIFs are written **only** when a checkpoint can be loaded from
     *models_root* (default: *results_dir*/models). No random-policy GIFs.
     """
-    from config import ENV_CONFIG, ENV_TAG, ENV_VERSION, GridNegotiationEnv
+    from config import ENV_CONFIG, ENV_SACRED_MARKER, ENV_TAG, GridNegotiationEnv
 
     cfg_0 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "human.yaml"))
     cfg_1 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "taxi.yaml"))
@@ -306,7 +306,7 @@ def generate_heatmaps_and_replays(
         metrics = runs.get(algo) if runs else None
         if results_dir is not None and metrics is not None:
             ckpt = find_best_checkpoint_timestep_dir(
-                algo, results_dir, metrics, ENV_VERSION,
+                algo, results_dir, metrics, ENV_SACRED_MARKER,
                 models_root=models_root,
             )
             if ckpt is not None:
@@ -388,21 +388,21 @@ def print_summary(runs: dict[str, dict]):
     print()
 
 
-def _resolve_env_version(cli_env: int | None) -> int:
+def _resolve_env_selector(cli_env: str | None) -> str:
+    allowed = {"0", "1", "2", "v3_neg", "v3_nav"}
     if cli_env is not None:
-        return cli_env
+        if cli_env in allowed:
+            return cli_env
+        print("Invalid --env. Use one of: 0, 1, 2, v3_neg, v3_nav.", file=sys.stderr)
+        sys.exit(1)
     if sys.stdin.isatty():
         while True:
-            raw = input("ThessLink env version [0-2]: ").strip()
-            try:
-                v = int(raw)
-                if v in (0, 1, 2):
-                    return v
-            except ValueError:
-                pass
-            print("  Enter 0, 1, or 2.", file=sys.stderr)
+            raw = input("ThessLink env selector [0,1,2,v3_neg,v3_nav]: ").strip()
+            if raw in allowed:
+                return raw
+            print("  Enter one of: 0, 1, 2, v3_neg, v3_nav.", file=sys.stderr)
     print(
-        "Error: pass --env 0..2 (non-interactive).",
+        "Error: pass --env <0|1|2|v3_neg|v3_nav> (non-interactive).",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -412,19 +412,18 @@ def main():
     parser = argparse.ArgumentParser(description="Visualize ThessLink RL training results")
     parser.add_argument(
         "--env",
-        type=int,
-        choices=[0, 1, 2],
+        type=str,
         default=None,
-        metavar="N",
-        help="ThessLink env version (0–2). If omitted, prompted when stdin is a TTY.",
+        metavar="ENV",
+        help="ThessLink env selector: 0,1,2,v3_neg,v3_nav. If omitted, prompted when stdin is a TTY.",
     )
     args = parser.parse_args()
 
-    v = _resolve_env_version(args.env)
-    os.environ["THESSLINK_ENV_VERSION"] = str(v)
-    from config import ENV_TAG, ENV_VERSION
+    env_selector = _resolve_env_selector(args.env)
+    os.environ["THESSLINK_ENV"] = env_selector
+    from config import ENV_SELECTOR, ENV_TAG
 
-    print(f"Using environment: {ENV_TAG} (ENV_VERSION={ENV_VERSION})")
+    print(f"Using environment: {ENV_TAG} (selector={ENV_SELECTOR})")
 
     runs = discover_runs(RESULTS_DIR)
     if not runs:

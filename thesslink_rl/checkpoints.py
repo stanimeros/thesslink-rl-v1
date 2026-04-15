@@ -73,19 +73,19 @@ def _checkpoint_dirs_for_run(run_dir: Path) -> dict[int, Path]:
     return out
 
 
-def _algo_run_dirs(models_root: Path, algo: str, env_version: int) -> list[Path]:
-    """Directories that directly contain ``<t_env>/*.th`` for this algo and env version.
+def _algo_run_dirs(models_root: Path, algo: str, env_marker: str) -> list[Path]:
+    """Directories that directly contain ``<t_env>/*.th`` for this algo and env marker.
 
     EPyMARL saves under::
 
-      models/<name>_seed<k>_<env_key>/GridNegotiation-vN_<timestamp>/<t_env>/*.th
+      models/<name>_seed<k>_<env_key>/GridNegotiation-v*_<timestamp>/<t_env>/*.th
 
     So the env version appears in a **nested** folder, not in the top-level name.
     """
     if not models_root.is_dir():
         return []
     algo_p = algo.lower() + "_"
-    version_prefix = f"GridNegotiation-v{env_version}_"
+    version_prefix = f"{env_marker}_"
     runs: list[Path] = []
     for child in models_root.iterdir():
         if not child.is_dir():
@@ -93,7 +93,7 @@ def _algo_run_dirs(models_root: Path, algo: str, env_version: int) -> list[Path]
         if not child.name.lower().startswith(algo_p):
             continue
         # Flat layout (unusual): version marker in the top-level folder name
-        if f"GridNegotiation-v{env_version}" in child.name:
+        if env_marker in child.name:
             runs.append(child)
             continue
         # Normal layout: models/<algo>_.../GridNegotiation-vN_<datetime>/
@@ -112,13 +112,13 @@ def find_best_checkpoint_timestep_dir(
     algo: str,
     results_dir: Path,
     metrics: dict,
-    env_version: int,
+    env_marker: str,
     *,
     models_root: Path | None = None,
 ) -> Path | None:
     """Pick the saved checkpoint whose timestep is closest to best test return.
 
-    Layout (EPyMARL): ``<models>/<name>_seed*_...GridNegotiation-vN.../<t_env>/*.th``
+    Layout (EPyMARL): ``<models>/<name>_seed*_...GridNegotiation-v*.../<t_env>/*.th``
     """
     root = models_root if models_root is not None else (results_dir / "models")
     target_t = best_test_env_timestep(metrics)
@@ -126,7 +126,7 @@ def find_best_checkpoint_timestep_dir(
         return None
     best_path: Path | None = None
     best_dist: float | None = None
-    for run_dir in _algo_run_dirs(root, algo, env_version):
+    for run_dir in _algo_run_dirs(root, algo, env_marker):
         for t, path in _checkpoint_dirs_for_run(run_dir).items():
             dist = float(abs(t - target_t))
             if best_dist is None or dist < best_dist:

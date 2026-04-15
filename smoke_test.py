@@ -3,10 +3,10 @@
 
 Usage:
     source .venv/bin/activate
-    THESSLINK_ENV_VERSION=3 python smoke_test.py   # non-interactive
+    THESSLINK_ENV=v3_neg python smoke_test.py   # non-interactive
     python smoke_test.py # prompts if stdin is a TTY
 
-``train.sh`` exports THESSLINK_ENV_VERSION before invoking this script.
+``train.sh`` exports THESSLINK_ENV before invoking this script.
 """
 
 from __future__ import annotations
@@ -21,30 +21,26 @@ import matplotlib
 matplotlib.use("Agg")
 
 
-def _ensure_env_version_for_smoke() -> None:
-    if "THESSLINK_ENV_VERSION" in os.environ:
+def _ensure_env_selector_for_smoke() -> None:
+    if "THESSLINK_ENV" in os.environ or "THESSLINK_ENV_VERSION" in os.environ:
         return
     if sys.stdin.isatty():
         while True:
-            raw = input("ThessLink env version [0-2]: ").strip()
-            try:
-                v = int(raw)
-                if v in (0, 1, 2):
-                    os.environ["THESSLINK_ENV_VERSION"] = str(v)
-                    return
-            except ValueError:
-                pass
-            print("  Enter 0, 1, or 2.", file=sys.stderr)
+            raw = input("ThessLink env selector [0,1,2,v3_neg,v3_nav]: ").strip()
+            if raw in {"0", "1", "2", "v3_neg", "v3_nav"}:
+                os.environ["THESSLINK_ENV"] = raw
+                return
+            print("  Enter one of: 0, 1, 2, v3_neg, v3_nav.", file=sys.stderr)
     print(
-        "Error: set THESSLINK_ENV_VERSION=0..2 or run via train.sh.",
+        "Error: set THESSLINK_ENV to one of 0,1,2,v3_neg,v3_nav or run via train.sh.",
         file=sys.stderr,
     )
     sys.exit(1)
 
 
-_ensure_env_version_for_smoke()
+_ensure_env_selector_for_smoke()
 
-from config import ENV_CONFIG, ENV_TAG, ENV_VERSION, GridNegotiationEnv
+from config import ENV_CONFIG, ENV_SACRED_MARKER, ENV_SELECTOR, ENV_TAG, GridNegotiationEnv
 from thesslink_rl.constants import (
     AGENT_CONFIG_YAMLS,
     EPYMARL_DIR,
@@ -61,7 +57,7 @@ LOG_INTERVAL = 50
 TEST_INTERVAL = 250
 SAVE_MODEL_INTERVAL = 500
 
-SACRED_VERSION_MARKER = f"GridNegotiation-v{ENV_VERSION}"
+SACRED_VERSION_MARKER = ENV_SACRED_MARKER
 SMOKE_RESULTS_DIR = EPYMARL_DIR / "results"
 
 
@@ -267,7 +263,7 @@ def generate_plots(metrics: dict, algo: str):
 def main():
     print("ThessLink RL — Smoke Test")
     print(f"Project: {PROJECT_ROOT}")
-    print(f"Environment version: v{ENV_VERSION} (env-config={ENV_CONFIG})")
+    print(f"Environment: {ENV_SELECTOR} (env-config={ENV_CONFIG})")
     print(f"Algorithms: {', '.join(a.upper() for a in TRAINING_ALGOS)}")
 
     for algo in TRAINING_ALGOS:
