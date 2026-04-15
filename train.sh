@@ -231,24 +231,20 @@ fi
 log "Applying patches to EPyMARL..."
 PATCH_DIR="$SCRIPT_DIR/epymarl_config/patches"
 _patch_base="$PATCH_DIR/epymarl_01_thesslink_base.patch"
-_patch_dual="$PATCH_DIR/epymarl_02_dual_policy.patch"
-for _p in "$_patch_base" "$_patch_dual"; do
+for _p in "$_patch_base"; do
   if [[ ! -f "$_p" ]]; then
     err "Missing EPyMARL patch (commit it to the repo): $_p"
     exit 1
   fi
 done
 git -C epymarl checkout -- . 2>/dev/null || true
-# New files from patch 02 are untracked; remove so re-apply works after checkout -- .
-rm -f epymarl/src/controllers/dual_basic_controller.py \
-    epymarl/src/modules/agents/dual_rnn_agent.py 2>/dev/null || true
-for _patch in "$_patch_base" "$_patch_dual"; do
+for _patch in "$_patch_base"; do
   if ! git -C epymarl apply "$_patch"; then
     err "git apply failed: $_patch (fresh clone + upstream EPyMARL revision mismatch?)"
     exit 1
   fi
 done
-log "Patches applied (thesslink base + dual-policy)."
+log "Patches applied (thesslink base)."
 
 log "Copying ThessLink env YAMLs into EPyMARL (epymarl_config/envs/*.yaml)..."
 _copied=0
