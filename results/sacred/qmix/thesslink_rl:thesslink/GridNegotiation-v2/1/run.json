@@ -43,7 +43,7 @@
       ]
     ]
   },
-  "heartbeat": "2026-04-13T16:16:46.976321",
+  "heartbeat": "2026-04-14T08:38:19.206625",
   "host": {
     "ENV": {},
     "cpu": "Intel(R) Core(TM) i9-10900K CPU @ 3.70GHz",
@@ -69,10 +69,10 @@
     "config_updates": {
       "common_reward": true,
       "local_results_path": "/home/aid26006/thesslink-rl/epymarl/results",
-      "log_interval": 25000,
+      "log_interval": 20000,
       "save_model": true,
-      "save_model_interval": 500000,
-      "t_max": 1000000,
+      "save_model_interval": 400000,
+      "t_max": 2000000,
       "test_interval": 50000
     },
     "named_configs": [],
@@ -101,10 +101,10 @@
       "UPDATE": [
         "local_results_path=/home/aid26006/thesslink-rl/epymarl/results",
         "save_model=True",
+        "log_interval=20000",
         "test_interval=50000",
-        "log_interval=25000",
-        "save_model_interval=500000",
-        "t_max=1000000",
+        "save_model_interval=400000",
+        "t_max=2000000",
         "common_reward=True"
       ],
       "help": false,
@@ -113,7 +113,7 @@
   },
   "resources": [],
   "result": null,
-  "start_time": "2026-04-13T13:47:21.788988",
+  "start_time": "2026-04-14T05:46:38.703717",
   "status": "COMPLETED",
-  "stop_time": "2026-04-13T16:16:46.949677"
+  "stop_time": "2026-04-14T08:38:19.191188"
 }
