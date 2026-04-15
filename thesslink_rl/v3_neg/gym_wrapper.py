@@ -31,7 +31,6 @@ class GridNegotiationGymEnv(gym.Env):
     """Negotiation-only environment with terminal-on-agreement."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
-    epymarl_dual_policy = False
 
     def __init__(
         self,

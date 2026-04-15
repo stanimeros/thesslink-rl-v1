@@ -1,8 +1,6 @@
-"""Core grid environment v3: symbolic observations with GPS signal (dual-policy).
+"""Core grid environment v3: symbolic observations with GPS signal.
 
-Same dynamics and layout as v2, but **no phase flag** in the observation. Training
-uses separate networks for negotiation vs navigation; the gym wrapper sets
-``epymarl_dual_policy`` so EPyMARL maps core ``phase`` to branch 0 (negotiate) or 1 (navigate).
+Same dynamics and layout as v2, but **no phase flag** in the observation.
 
 Observation vector (size 18):
   self_scores   (3)  Agent's preference scores for the 3 POIs

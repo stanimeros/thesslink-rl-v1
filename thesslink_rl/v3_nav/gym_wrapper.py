@@ -37,7 +37,6 @@ class GridNegotiationGymEnv(gym.Env):
     """Navigation-only environment starting directly from agreed POI."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
-    epymarl_dual_policy = False
 
     def __init__(
         self,

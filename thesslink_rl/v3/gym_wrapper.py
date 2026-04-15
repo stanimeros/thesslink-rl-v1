@@ -1,8 +1,6 @@
-"""Gymnasium multi-agent wrapper for EPyMARL -- v3 (dual policy + potential-based shaping).
+"""Gymnasium multi-agent wrapper for EPyMARL -- v3 (single policy + potential-based shaping).
 
-Symbolic **18**-feature observation (no phase flag). Set ``epymarl_dual_policy``
-so EPyMARL uses two agent stacks; ``GymmaWrapper`` maps core ``phase`` to
-**0** = negotiation, **1** = navigation.
+Symbolic **18**-feature observation (no phase flag).
 
 Reward shaping matches v2 (negotiation bonuses, potential-based navigation).
 """
@@ -52,7 +50,6 @@ class GridNegotiationGymEnv(gym.Env):
     """Gymnasium wrapper around GridNegotiationEnv (v3) for EPyMARL."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
-    epymarl_dual_policy = True
 
     def __init__(
         self,
