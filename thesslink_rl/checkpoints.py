@@ -338,6 +338,12 @@ def rollout_episode_frames_for_gif(
     runner.t_env = int(ckpt_dir.name)
 
     runner.reset()
+    # Ensure frame-0 starts from an explicit seed instead of depending on
+    # any prior RNG consumption during runner/env setup.
+    try:
+        runner.env.reset(seed=seed)
+    except TypeError:
+        runner.env.reset()
     grid = _unwrap_grid_negotiation(runner.env)
     frames: list[dict] = [capture_frame(grid)]
 
