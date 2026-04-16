@@ -447,6 +447,8 @@ def replay_episode(
 
     for idx, frame in enumerate(frames):
         env.agent_positions = frame["agent_positions"]
+        if "spawn_positions" in frame:
+            env.spawn_positions = frame["spawn_positions"]
         env.phase = frame["phase"]
         env.agreed_poi = frame.get("agreed_poi")
         env.last_suggestion = frame.get("last_suggestion", {})
