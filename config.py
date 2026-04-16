@@ -1,52 +1,34 @@
-"""Single source of truth for the active training/eval environment selector."""
+"""Single source of truth for active training/eval environment selection."""
 
 import os
+import re
+
+from thesslink_rl.env_catalog import prompt_help, resolve_env_choice
 
 _RAW_SELECTOR = os.environ.get("THESSLINK_ENV", os.environ.get("THESSLINK_ENV_VERSION", "")).strip()
 if not _RAW_SELECTOR:
     raise RuntimeError(
-        "Environment selector is not set. Use one of: 0, 1, 2, v3_neg, v3_nav "
+        "Environment selector is not set. Use one of: "
+        f"{prompt_help()} "
         "(via THESSLINK_ENV or THESSLINK_ENV_VERSION).",
     )
-if _RAW_SELECTOR not in {"0", "1", "2", "v3_neg", "v3_nav"}:
-    raise ValueError(
-        f"Invalid environment selector: {_RAW_SELECTOR!r}. "
-        "Expected one of: 0, 1, 2, v3_neg, v3_nav.",
-    )
+_choice = resolve_env_choice(_RAW_SELECTOR)
 
 # --- Derived (do not edit) ------------------------------------------------
 
-ENV_SELECTOR = _RAW_SELECTOR
-ENV_VERSION = int(_RAW_SELECTOR) if _RAW_SELECTOR.isdigit() else 3
-ENV_LABEL = _RAW_SELECTOR
+ENV_SELECTOR = _choice["env_config"]
+ENV_LABEL = _choice["alias"]
+ENV_INDEX = _choice["index"]
+ENV_SACRED_MARKER = _choice["marker"]
+_BASE_VERSION = _choice["base_version"]
+ENV_VERSION = _BASE_VERSION
 
-if _RAW_SELECTOR == "2":
-    from thesslink_rl.v2 import ENV_TAG, GridNegotiationEnv
-elif _RAW_SELECTOR == "1":
-    from thesslink_rl.v1 import ENV_TAG, GridNegotiationEnv
-elif _RAW_SELECTOR == "v3_neg":
-    from thesslink_rl.v3.environment import GridNegotiationEnv
-    ENV_TAG = "v3_neg"
-elif _RAW_SELECTOR == "v3_nav":
-    from thesslink_rl.v3.environment import GridNegotiationEnv
-    ENV_TAG = "v3_nav"
+if _BASE_VERSION == 2:
+    from thesslink_rl.v2 import GridNegotiationEnv
+elif _BASE_VERSION == 1:
+    from thesslink_rl.v1 import GridNegotiationEnv
 else:
-    from thesslink_rl.v0 import ENV_TAG, GridNegotiationEnv
+    from thesslink_rl.v0 import GridNegotiationEnv
 
-_ENV_CONFIG_MAP = {
-    "0": "thesslink",
-    "1": "thesslink_v1",
-    "2": "thesslink_v2",
-    "v3_neg": "thesslink_v3_neg",
-    "v3_nav": "thesslink_v3_nav",
-}
-_ENV_MARKER_MAP = {
-    "0": "GridNegotiation-v0",
-    "1": "GridNegotiation-v1",
-    "2": "GridNegotiation-v2",
-    "v3_neg": "GridNegotiation-v3-neg",
-    "v3_nav": "GridNegotiation-v3-nav",
-}
-
-ENV_CONFIG = _ENV_CONFIG_MAP[ENV_SELECTOR]
-ENV_SACRED_MARKER = _ENV_MARKER_MAP[ENV_SELECTOR]
+ENV_CONFIG = ENV_SELECTOR
+ENV_TAG = ENV_LABEL if re.fullmatch(r"v\d+_.+", ENV_LABEL) else f"v{_BASE_VERSION}"

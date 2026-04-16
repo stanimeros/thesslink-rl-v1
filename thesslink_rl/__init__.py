@@ -26,3 +26,8 @@ register(
     id="thesslink/GridNegotiation-v3-nav",
     entry_point="thesslink_rl.v3_nav.gym_wrapper:GridNegotiationGymEnv",
 )
+
+register(
+    id="thesslink/GridNegotiation-v4-neg",
+    entry_point="thesslink_rl.v4_neg.gym_wrapper:GridNegotiationGymEnv",
+)

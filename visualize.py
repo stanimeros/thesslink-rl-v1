@@ -26,6 +26,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from thesslink_rl.env_catalog import prompt_help, resolve_env_choice
 from thesslink_rl.checkpoints import (
     describe_models_dir_status,
     find_best_checkpoint_timestep_dir,
@@ -389,20 +390,21 @@ def print_summary(runs: dict[str, dict]):
 
 
 def _resolve_env_selector(cli_env: str | None) -> str:
-    allowed = {"0", "1", "2", "v3_neg", "v3_nav"}
     if cli_env is not None:
-        if cli_env in allowed:
-            return cli_env
-        print("Invalid --env. Use one of: 0, 1, 2, v3_neg, v3_nav.", file=sys.stderr)
-        sys.exit(1)
+        try:
+            return resolve_env_choice(cli_env)["env_config"]
+        except ValueError:
+            print(f"Invalid --env. Use one of: {prompt_help()}.", file=sys.stderr)
+            sys.exit(1)
     if sys.stdin.isatty():
         while True:
-            raw = input("ThessLink env selector [0,1,2,v3_neg,v3_nav]: ").strip()
-            if raw in allowed:
-                return raw
-            print("  Enter one of: 0, 1, 2, v3_neg, v3_nav.", file=sys.stderr)
+            raw = input(f"ThessLink env selector [{prompt_help()}]: ").strip()
+            try:
+                return resolve_env_choice(raw)["env_config"]
+            except ValueError:
+                print(f"  Enter one of: {prompt_help()}.", file=sys.stderr)
     print(
-        "Error: pass --env <0|1|2|v3_neg|v3_nav> (non-interactive).",
+        f"Error: pass --env one of {prompt_help()} (non-interactive).",
         file=sys.stderr,
     )
     sys.exit(1)

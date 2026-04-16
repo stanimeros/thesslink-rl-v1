@@ -47,6 +47,22 @@ print(' '.join(mod.TRAINING_ALGOS))
 }
 read -r -a ALL_ALGOS <<< "$(_training_algos_words)"
 
+_env_catalog_help() {
+  python3 -c "
+import importlib.util
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+path = root / 'thesslink_rl' / 'env_catalog.py'
+spec = importlib.util.spec_from_file_location('_thesslink_env_catalog', path)
+mod = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(mod)
+print(mod.prompt_help())
+" "$SCRIPT_DIR"
+}
+ENV_CHOICES="$(_env_catalog_help)"
+
 RESULTS_DIR="epymarl/results"
 # Absolute base; per-run nohup logs live in logs/<env-label>/.
 RESULTS_DIR_ABS="$SCRIPT_DIR/$RESULTS_DIR"
@@ -166,9 +182,9 @@ fi
 
 if [[ -z "${THESSLINK_ENV:-}" && -z "${THESSLINK_ENV_VERSION:-}" ]]; then
     if [[ -t 0 ]]; then
-        read -r -p "ThessLink env selector [0,1,2,v3_neg,v3_nav]: " THESSLINK_ENV
+        read -r -p "ThessLink env selector [${ENV_CHOICES}]: " THESSLINK_ENV
     else
-        err "Env selector required: ./train.sh --env <0|1|2|v3_neg|v3_nav> or export THESSLINK_ENV."
+        err "Env selector required: ./train.sh --env <${ENV_CHOICES}> or export THESSLINK_ENV."
         exit 1
     fi
 fi
@@ -177,13 +193,22 @@ if [[ -z "${THESSLINK_ENV:-}" && -n "${THESSLINK_ENV_VERSION:-}" ]]; then
     THESSLINK_ENV="${THESSLINK_ENV_VERSION}"
 fi
 
-case "${THESSLINK_ENV}" in
-    0|1|2|v3_neg|v3_nav) ;;
-    *)
-        err "Invalid env selector: ${THESSLINK_ENV} (expected 0|1|2|v3_neg|v3_nav)"
-        exit 1
-        ;;
-esac
+if ! python3 -c "
+import importlib.util
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+choice = sys.argv[2]
+path = root / 'thesslink_rl' / 'env_catalog.py'
+spec = importlib.util.spec_from_file_location('_thesslink_env_catalog', path)
+mod = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+spec.loader.exec_module(mod)
+mod.resolve_env_choice(choice)
+" "$SCRIPT_DIR" "$THESSLINK_ENV" >/dev/null 2>&1; then
+    err "Invalid env selector: ${THESSLINK_ENV} (available: ${ENV_CHOICES})"
+    exit 1
+fi
 export THESSLINK_ENV
 
 if [[ $# -gt 0 ]]; then
@@ -331,4 +356,4 @@ done
 echo ""
 log "Monitor with:  ./train.sh --status"
 log "Kill all with: ./train.sh --kill"
-log "Tail a log:    tail -f $LOGS_ROOT/<0|1|2|v3_neg|v3_nav>/<algo>.log"
+log "Tail a log:    tail -f $LOGS_ROOT/<${ENV_CHOICES}>/<algo>.log"

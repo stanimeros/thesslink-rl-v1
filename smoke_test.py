@@ -20,19 +20,23 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 
+from thesslink_rl.env_catalog import prompt_help, resolve_env_choice
+
 
 def _ensure_env_selector_for_smoke() -> None:
     if "THESSLINK_ENV" in os.environ or "THESSLINK_ENV_VERSION" in os.environ:
         return
     if sys.stdin.isatty():
         while True:
-            raw = input("ThessLink env selector [0,1,2,v3_neg,v3_nav]: ").strip()
-            if raw in {"0", "1", "2", "v3_neg", "v3_nav"}:
-                os.environ["THESSLINK_ENV"] = raw
+            raw = input(f"ThessLink env selector [{prompt_help()}]: ").strip()
+            try:
+                choice = resolve_env_choice(raw)
+                os.environ["THESSLINK_ENV"] = choice["env_config"]
                 return
-            print("  Enter one of: 0, 1, 2, v3_neg, v3_nav.", file=sys.stderr)
+            except ValueError:
+                print(f"  Enter one of: {prompt_help()}", file=sys.stderr)
     print(
-        "Error: set THESSLINK_ENV to one of 0,1,2,v3_neg,v3_nav or run via train.sh.",
+        f"Error: set THESSLINK_ENV to one of {prompt_help()} or run via train.sh.",
         file=sys.stderr,
     )
     sys.exit(1)
