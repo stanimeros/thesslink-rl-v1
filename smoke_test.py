@@ -3,7 +3,7 @@
 
 Usage:
     source .venv/bin/activate
-    THESSLINK_ENV=v3_neg python smoke_test.py   # non-interactive
+    THESSLINK_ENV=v3_neg python smoke_test.py   # non-interactive (try v4_neg / v4_nav)
     python smoke_test.py # prompts if stdin is a TTY
 
 ``train.sh`` exports THESSLINK_ENV before invoking this script.

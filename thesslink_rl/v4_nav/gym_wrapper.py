@@ -1,4 +1,4 @@
-"""Gym wrapper for negotiation-only training (v4 reward shaping on v3 core env)."""
+"""Gym wrapper for navigation-only training on v3 core dynamics (v4 reward curriculum)."""
 
 from __future__ import annotations
 
@@ -9,29 +9,43 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from ..evaluation import AgentConfig, compute_poi_scores, negotiation_quality, optimal_poi
+from ..evaluation import (
+    AgentConfig,
+    bfs_distances,
+    compute_poi_scores,
+    negotiation_quality,
+    optimal_poi,
+)
 from ..v3.environment import (
-    ACT_ACCEPT,
-    ACT_SUGGEST_BASE,
     ACTION_DIM,
+    GRID_SIZE,
     NUM_AGENTS,
-    NUM_SUGGEST_ACTIONS,
+    NUM_POIS,
     OBS_FLAT_SIZE,
     GridNegotiationEnv,
 )
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent
-_NEG_SUGGEST_BONUS = 0.03
-_NEG_ACCEPT_BONUS = 0.0
-_NEG_ACCEPT_THRESHOLD = 0.6
-_NEG_OPTIMAL_AGREEMENT_BONUS = 18.0
-_NEG_SUBOPTIMAL_AGREEMENT_BONUS = 2.0
-_NEG_WRONG_AGREEMENT_PENALTY = -2.0
-_NEG_TIMEOUT_PENALTY = -2.0
+_SHAPING_GAMMA = 0.99
+_MAX_BFS_DIST = float(GRID_SIZE * GRID_SIZE)
+_NAV_STEP_PENALTY = -0.01
+_NAV_ARRIVAL_SCALE = 6.0
+_NAV_TEAM_SCALE = 20.0
+# Mix optimal vs suboptimal meeting targets so policies do not overfit the
+# joint-optimal POI that v3_nav always used.
+_NAV_OPTIMAL_AGREED_PROB = 0.5
+_NAV_TIMEOUT_PENALTY = -2.0
+
+
+def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray) -> float:
+    d = bfs_grid[agent_pos[0], agent_pos[1]]
+    if np.isinf(d):
+        return -1.0
+    return -d / _MAX_BFS_DIST
 
 
 class GridNegotiationGymEnv(gym.Env):
-    """Negotiation-only environment with terminal-on-agreement."""
+    """Navigation-only env: randomised agreed POI (v4) then navigate."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
 
@@ -72,6 +86,9 @@ class GridNegotiationGymEnv(gym.Env):
         self._poi_scores: Dict[str, np.ndarray] = {}
         self._agreed_poi: int | None = None
         self._optimal_poi: int = 0
+        self._target_bfs: np.ndarray | None = None
+        self._prev_potentials: Dict[str, float] = {}
+        self._individual_arrived: Dict[str, bool] = {}
 
     def reset(
         self, seed: int | None = None, options: dict | None = None
@@ -87,12 +104,32 @@ class GridNegotiationGymEnv(gym.Env):
             )
             self._poi_scores[agent] = scores
             self._env.poi_scores[agent] = scores
-        self._agreed_poi = None
+
         self._optimal_poi = optimal_poi(self._poi_scores, agents)
+        if self._env._rng.rand() < _NAV_OPTIMAL_AGREED_PROB:
+            self._agreed_poi = self._optimal_poi
+        else:
+            others = [i for i in range(NUM_POIS) if i != self._optimal_poi]
+            self._agreed_poi = int(self._env._rng.choice(others))
+        self._env.agreed_poi = self._agreed_poi
+        self._env.phase = "navigation"
+        self._env.neg_turn = None
+        self._env.last_suggestion = {}
+        self._env.agents_reached = {a: False for a in agents}
+
+        target = self._env.poi_positions[self._agreed_poi]
+        self._target_bfs = bfs_distances(target, self._env.obstacle_map)
+        self._prev_potentials = {}
+        self._individual_arrived = {a: False for a in agents}
+        for a in agents:
+            pos = tuple(self._env.agent_positions[a])
+            self._prev_potentials[a] = _potential(pos, self._target_bfs)
+
         obs_tuple = tuple(self._env._get_obs(a) for a in agents)
         info = {
             "poi_scores": {k: v.tolist() for k, v in self._poi_scores.items()},
-            "optimal_poi": self._optimal_poi,
+            "agreed_poi": int(self._agreed_poi),
+            "optimal_poi": int(self._optimal_poi),
         }
         return obs_tuple, info
 
@@ -101,50 +138,42 @@ class GridNegotiationGymEnv(gym.Env):
     ) -> tuple[tuple[np.ndarray, ...], list[float], bool, bool, dict]:
         agents = self._env.possible_agents
         actions_dict = {agents[i]: int(actions[i]) for i in range(self.n_agents)}
-        prev_neg_turn = self._env.neg_turn
-        prev_suggestions = dict(self._env.last_suggestion)
-
-        obs_d, _, _, truncated_d, _ = self._env.step(actions_dict)
+        obs_d, _, terminated_d, truncated_d, _ = self._env.step(actions_dict)
         obs_tuple = tuple(obs_d[a] for a in agents)
         rewards = [0.0] * self.n_agents
 
-        if prev_neg_turn is not None:
-            active = prev_neg_turn
-            act = actions_dict[active]
-            idx = agents.index(active)
-            peer = agents[1 - idx]
-            my_scores = self._poi_scores[active]
+        assert self._agreed_poi is not None
+        assert self._target_bfs is not None
+        quality = negotiation_quality(self._agreed_poi, self._poi_scores, agents)
+        for i, a in enumerate(agents):
+            if self._individual_arrived.get(a, False):
+                continue
+            cur_pos = tuple(self._env.agent_positions[a])
+            cur_phi = _potential(cur_pos, self._target_bfs)
+            prev_phi = self._prev_potentials.get(a, cur_phi)
+            rewards[i] += _SHAPING_GAMMA * cur_phi - prev_phi
+            self._prev_potentials[a] = cur_phi
+            rewards[i] += _NAV_STEP_PENALTY
+            if self._env.agents_reached.get(a, False) and not self._individual_arrived[a]:
+                self._individual_arrived[a] = True
+                rewards[i] += quality * _NAV_ARRIVAL_SCALE
 
-            if ACT_SUGGEST_BASE <= act < ACT_SUGGEST_BASE + NUM_SUGGEST_ACTIONS:
-                suggested = act - ACT_SUGGEST_BASE
-                if suggested == int(np.argmax(my_scores)):
-                    rewards[idx] += _NEG_SUGGEST_BONUS
-            elif act == ACT_ACCEPT and peer in prev_suggestions:
-                peer_suggested = prev_suggestions[peer]
-                if my_scores[peer_suggested] >= _NEG_ACCEPT_THRESHOLD:
-                    rewards[idx] += _NEG_ACCEPT_BONUS
-
-        if self._agreed_poi is None and self._env.agreed_poi is not None:
-            self._agreed_poi = self._env.agreed_poi
-            quality = negotiation_quality(self._agreed_poi, self._poi_scores, agents)
-            agreed_optimal_now = self._agreed_poi == self._optimal_poi
+        all_reached = all(self._env.agents_reached[a] for a in agents)
+        if all_reached:
             for i in range(self.n_agents):
-                if agreed_optimal_now:
-                    rewards[i] += quality * _NEG_OPTIMAL_AGREEMENT_BONUS
-                else:
-                    rewards[i] += quality * _NEG_SUBOPTIMAL_AGREEMENT_BONUS
-                    rewards[i] += _NEG_WRONG_AGREEMENT_PENALTY
+                rewards[i] += quality * _NAV_TEAM_SCALE
 
-        done = self._env.agreed_poi is not None
+        done = all(terminated_d[a] for a in agents)
         truncated = all(truncated_d[a] for a in agents)
-        if truncated and not done:
+        if truncated and not all_reached:
             for i in range(self.n_agents):
-                rewards[i] += _NEG_TIMEOUT_PENALTY
-        agreed_optimal = done and (self._agreed_poi == self._optimal_poi)
+                rewards[i] += _NAV_TIMEOUT_PENALTY
+
+        agreed_optimal = self._agreed_poi == self._optimal_poi
         info: dict[str, Any] = {
-            "battle_won": float(done),
-            "reached_poi": 0.0,
-            "negotiation_agreed": float(done),
+            "battle_won": float(all_reached),
+            "reached_poi": float(all_reached),
+            "negotiation_agreed": 1.0,
             "negotiation_optimal": float(agreed_optimal),
         }
         return obs_tuple, rewards, done, truncated, info
@@ -157,4 +186,3 @@ class GridNegotiationGymEnv(gym.Env):
 
     def close(self):
         pass
-

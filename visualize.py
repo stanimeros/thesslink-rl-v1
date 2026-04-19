@@ -417,7 +417,7 @@ def main():
         type=str,
         default=None,
         metavar="ENV",
-        help="ThessLink env selector: 0,1,2,v3_neg,v3_nav. If omitted, prompted when stdin is a TTY.",
+        help="ThessLink env selector (see env_catalog), e.g. 0,1,2,v3_neg,v3_nav,v4_neg,v4_nav.",
     )
     args = parser.parse_args()
 

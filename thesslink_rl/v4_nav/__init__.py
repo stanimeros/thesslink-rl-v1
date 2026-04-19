@@ -1,4 +1,4 @@
-"""ThessLink RL v4 negotiation-only environment."""
+"""ThessLink RL v4 navigation-only environment."""
 
 from .gym_wrapper import GridNegotiationGymEnv
 

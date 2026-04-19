@@ -6,7 +6,9 @@
 #   ./train.sh --env 2        # IQL, QMIX, VDN, MAPPO, COMA on ThessLink v2
 #   ./train.sh --env v3_neg   # negotiation-only split environment
 #   ./train.sh --env v3_nav   # navigation-only split environment
-#   ./train.sh # prompts for env selector [0,1,2,v3_neg,v3_nav] if stdin is a TTY
+#   ./train.sh --env v4_neg   # v4 negotiation rewards (tiered agreement + timeout)
+#   ./train.sh --env v4_nav   # v4 navigation (mixed agreed POI + timeout penalty)
+#   ./train.sh # prompts for env selector (see env_catalog) if stdin is a TTY
 #   ./train.sh --status   # live dashboard (watch -n 2; Ctrl+C to stop)
 #   ./train.sh --kill     # kill all running training processes
 #
