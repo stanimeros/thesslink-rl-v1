@@ -323,7 +323,9 @@ mkdir -p "$LOGS_DIR"
 
 algo_extra_args() {
     # After venv: full package import is OK (gymnasium installed).
-    PYTHONPATH="$SCRIPT_DIR" python -c "from thesslink_rl.constants import epymarl_common_reward_cli_flag; import sys; print(epymarl_common_reward_cli_flag(sys.argv[1]))" "$1"
+    # ``common_reward`` default lives in ``epymarl_config/envs/<ENV_CONFIG>.yaml``;
+    # QMIX/VDN/COMA are always forced True inside ``thesslink_rl.constants``.
+    PYTHONPATH="$SCRIPT_DIR" python -c "from thesslink_rl.constants import epymarl_common_reward_cli_flag; import sys; print(epymarl_common_reward_cli_flag(sys.argv[1], sys.argv[2]))" "$1" "$ENV_CONFIG"
 }
 
 log "Launching ${#ALGOS[@]} algorithm(s): ${ALGOS[*]}"
