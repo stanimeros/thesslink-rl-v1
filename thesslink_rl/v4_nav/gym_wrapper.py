@@ -1,4 +1,9 @@
-"""Gym wrapper for navigation-only training on v3 core dynamics (v4 reward curriculum)."""
+"""Gym wrapper for navigation-only training on v3 core dynamics (v4 reward curriculum).
+
+The agreed POI is sampled uniformly at random from the three available POIs
+on every reset.  The nav policy's job is to reach whatever POI it is told —
+optimality is the neg policy's concern, not navigation's.
+"""
 
 from __future__ import annotations
 
@@ -31,9 +36,6 @@ _MAX_BFS_DIST = float(GRID_SIZE * GRID_SIZE)
 _NAV_STEP_PENALTY = -0.01
 _NAV_ARRIVAL_SCALE = 6.0
 _NAV_TEAM_SCALE = 20.0
-# Mix optimal vs suboptimal meeting targets so policies do not overfit the
-# joint-optimal POI that v3_nav always used.
-_NAV_OPTIMAL_AGREED_PROB = 0.5
 _NAV_TIMEOUT_PENALTY = -2.0
 
 
@@ -45,7 +47,7 @@ def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray) -> float:
 
 
 class GridNegotiationGymEnv(gym.Env):
-    """Navigation-only env: randomised agreed POI (v4) then navigate."""
+    """Navigation-only env: navigate to a uniformly random agreed POI."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
 
@@ -74,12 +76,7 @@ class GridNegotiationGymEnv(gym.Env):
         )
         self.observation_space = spaces.Tuple(
             tuple(
-                spaces.Box(
-                    low=-1.0,
-                    high=1.0,
-                    shape=(OBS_FLAT_SIZE,),
-                    dtype=np.float32,
-                )
+                spaces.Box(low=-1.0, high=1.0, shape=(OBS_FLAT_SIZE,), dtype=np.float32)
                 for _ in range(self.n_agents)
             )
         )
@@ -106,11 +103,8 @@ class GridNegotiationGymEnv(gym.Env):
             self._env.poi_scores[agent] = scores
 
         self._optimal_poi = optimal_poi(self._poi_scores, agents)
-        if self._env._rng.rand() < _NAV_OPTIMAL_AGREED_PROB:
-            self._agreed_poi = self._optimal_poi
-        else:
-            others = [i for i in range(NUM_POIS) if i != self._optimal_poi]
-            self._agreed_poi = int(self._env._rng.choice(others))
+        self._agreed_poi = int(self._env._rng.randint(0, NUM_POIS))
+
         self._env.agreed_poi = self._agreed_poi
         self._env.phase = "navigation"
         self._env.neg_turn = None
@@ -169,7 +163,6 @@ class GridNegotiationGymEnv(gym.Env):
             for i in range(self.n_agents):
                 rewards[i] += _NAV_TIMEOUT_PENALTY
 
-        # Golden-mean optimal: whether the (preset) agreed POI matches evaluation.optimal_poi.
         agreed_optimal = self._agreed_poi == self._optimal_poi
         info: dict[str, Any] = {
             "battle_won": float(all_reached),

@@ -1,4 +1,9 @@
-"""Gym wrapper for navigation-only training on v3 dynamics."""
+"""Gym wrapper for navigation-only training on v3 dynamics.
+
+The agreed POI is sampled uniformly at random from the three available POIs
+on every reset.  The nav policy's job is to reach whatever POI it is told —
+optimality is the neg policy's concern, not navigation's.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +21,14 @@ from ..evaluation import (
     negotiation_quality,
     optimal_poi,
 )
-from ..v3.environment import ACTION_DIM, GRID_SIZE, NUM_AGENTS, OBS_FLAT_SIZE, GridNegotiationEnv
+from ..v3.environment import (
+    ACTION_DIM,
+    GRID_SIZE,
+    NUM_AGENTS,
+    NUM_POIS,
+    OBS_FLAT_SIZE,
+    GridNegotiationEnv,
+)
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent
 _SHAPING_GAMMA = 0.99
@@ -34,7 +46,7 @@ def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray) -> float:
 
 
 class GridNegotiationGymEnv(gym.Env):
-    """Navigation-only environment starting directly from agreed POI."""
+    """Navigation-only environment: navigate to a uniformly random agreed POI."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
 
@@ -63,12 +75,7 @@ class GridNegotiationGymEnv(gym.Env):
         )
         self.observation_space = spaces.Tuple(
             tuple(
-                spaces.Box(
-                    low=-1.0,
-                    high=1.0,
-                    shape=(OBS_FLAT_SIZE,),
-                    dtype=np.float32,
-                )
+                spaces.Box(low=-1.0, high=1.0, shape=(OBS_FLAT_SIZE,), dtype=np.float32)
                 for _ in range(self.n_agents)
             )
         )
@@ -95,7 +102,8 @@ class GridNegotiationGymEnv(gym.Env):
             self._env.poi_scores[agent] = scores
 
         self._optimal_poi = optimal_poi(self._poi_scores, agents)
-        self._agreed_poi = self._optimal_poi
+        self._agreed_poi = int(self._env._rng.randint(0, NUM_POIS))
+
         self._env.agreed_poi = self._agreed_poi
         self._env.phase = "navigation"
         self._env.neg_turn = None
@@ -150,12 +158,12 @@ class GridNegotiationGymEnv(gym.Env):
 
         done = all(terminated_d[a] for a in agents)
         truncated = all(truncated_d[a] for a in agents)
+        agreed_optimal = self._agreed_poi == self._optimal_poi
         info: dict[str, Any] = {
             "battle_won": float(all_reached),
             "reached_poi": float(all_reached),
             "negotiation_agreed": 1.0,
-            # v3_nav always spawns at golden-mean-optimal agreed POI (see reset).
-            "negotiation_optimal": 1.0,
+            "negotiation_optimal": float(agreed_optimal),
         }
         return obs_tuple, rewards, done, truncated, info
 
@@ -167,4 +175,3 @@ class GridNegotiationGymEnv(gym.Env):
 
     def close(self):
         pass
-
