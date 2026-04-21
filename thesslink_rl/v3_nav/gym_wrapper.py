@@ -154,6 +154,7 @@ class GridNegotiationGymEnv(gym.Env):
             "battle_won": float(all_reached),
             "reached_poi": float(all_reached),
             "negotiation_agreed": 1.0,
+            # v3_nav always spawns at golden-mean-optimal agreed POI (see reset).
             "negotiation_optimal": 1.0,
         }
         return obs_tuple, rewards, done, truncated, info

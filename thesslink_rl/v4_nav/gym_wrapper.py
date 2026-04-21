@@ -169,6 +169,7 @@ class GridNegotiationGymEnv(gym.Env):
             for i in range(self.n_agents):
                 rewards[i] += _NAV_TIMEOUT_PENALTY
 
+        # Golden-mean optimal: whether the (preset) agreed POI matches evaluation.optimal_poi.
         agreed_optimal = self._agreed_poi == self._optimal_poi
         info: dict[str, Any] = {
             "battle_won": float(all_reached),

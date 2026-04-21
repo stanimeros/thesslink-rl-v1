@@ -14,6 +14,15 @@ the three POIs).
 Raw costs are **min-max normalised across the three POIs** and flipped to an
 energy score; privacy is already in ``[0, 1]``.  Blend:
 ``(1 - privacy_emphasis) * energy + privacy_emphasis * privacy``.
+
+**Golden-mean negotiation (same idea everywhere in logs/plots).**  For each POI
+``k``, define ``g_k = ∏_a s_k^{(a)}`` (product of both agents’ POI scores) via
+``golden_mean_vector``.  That is the *cooperative* compromise: no agent’s
+preference dominates a single dimension; the best *joint* meeting point is
+``argmax_k g_k`` (``optimal_poi``).  **Good negotiation** here means locking in
+that POI; wrappers expose it as ``negotiation_optimal`` and Sacred as
+``negotiation_optimal_mean`` / ``test_negotiation_optimal_mean`` (often labelled
+“golden-mean” in plots).
 """
 
 from __future__ import annotations
@@ -232,7 +241,13 @@ def golden_mean_vector(
     scores: dict[str, np.ndarray],
     agents: list[str],
 ) -> np.ndarray:
-    """Golden mean for every POI — shape (NUM_POIS,)."""
+    """Per-POI cooperative criterion ``g_k = ∏_a s_k^{(a)}`` — shape ``(NUM_POIS,)``.
+
+    High ``g_k`` means both agents like POI ``k`` in a balanced (multiplicative)
+    way; ``optimal_poi`` picks the best joint choice.  This is what we call
+    **golden-mean negotiation** in docs and plots (agreement *on that POI* =
+    high-quality mutual deal, not merely any agreement).
+    """
     gm = np.ones(NUM_POIS, dtype=np.float64)
     for a in agents:
         gm *= scores[a].astype(np.float64)
@@ -243,8 +258,11 @@ def optimal_poi(
     scores: dict[str, np.ndarray],
     agents: list[str],
 ) -> int:
-    """Return the POI index that maximises the golden-mean (product) of
-    both agents' scores — i.e. the best common choice."""
+    """POI index that maximises ``golden_mean_vector`` — the golden-mean-optimal meeting point.
+
+    When negotiators settle on this POI, ``negotiation_optimal`` is true: they
+    achieved the best *mutual* outcome under the product criterion.
+    """
     return int(np.argmax(golden_mean_vector(scores, agents)))
 
 
@@ -253,12 +271,11 @@ def negotiation_quality(
     scores: dict[str, np.ndarray],
     agents: list[str],
 ) -> float:
-    """How good is the chosen POI relative to the best possible?
+    """How good is the agreed POI relative to the golden-mean optimum?
 
-    Returns a value in [0, 1]:  1.0 = optimal choice, 0.0 = worst.
-    The ratio ``gm_chosen / gm_best`` directly measures decision quality
-    so the reward scales smoothly — a near-optimal pick is barely penalised,
-    a terrible pick gets almost nothing.
+    Returns a value in ``[0, 1]``: ``1.0`` = agreed on ``optimal_poi`` (best
+    golden-mean joint choice), lower values = worse mutual compromise.  The
+    ratio ``gm_chosen / gm_best`` makes rewards smooth near the optimum.
     """
     gm = golden_mean_vector(scores, agents)
     best = float(gm.max())

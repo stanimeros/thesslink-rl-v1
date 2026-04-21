@@ -129,6 +129,7 @@ class GridNegotiationGymEnv(gym.Env):
 
         done = self._env.agreed_poi is not None
         truncated = all(truncated_d[a] for a in agents)
+        # Golden-mean optimal: agreed POI == argmax ∏_a scores (see evaluation).
         agreed_optimal = done and (self._agreed_poi == self._optimal_poi)
         info: dict[str, Any] = {
             "battle_won": float(done),

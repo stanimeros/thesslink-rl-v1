@@ -346,15 +346,21 @@ def plot_training_curves(
     env_name: str | None = None,
     timesteps: list | None = None,
 ):
-    """Plot test metrics vs timesteps: return, agreement / golden-mean / reach rates, ep length.
+    """Plot test metrics vs timesteps: return, agreement / golden-mean optimal / reach, ep length.
 
-    (Policy-gradient / TD *losses* are training objectives logged separately by EPyMARL,
-    not environment returns — omit here to focus on eval behaviour.)
+    *Golden-mean* = agreed on ``optimal_poi`` (``evaluation``); see that module's docstring.
+
+    Policy-gradient / TD *losses* are training objectives logged separately by EPyMARL,
+    not environment returns — omit here to focus on eval behaviour.
     """
     panels = [
         ("common_reward", "Mean test return", "#2ecc71"),
         ("negotiate", "Agreement rate (%)", "#9b59b6"),
-        ("negotiate_optimal", "Golden-mean agreement (%)", "#8e44ad"),
+        (
+            "negotiate_optimal",
+            "Golden-mean negotiation — optimal agreement (%)",
+            "#8e44ad",
+        ),
         ("reach", "Reach rate (%)", "#3498db"),
         ("ep_len", "Episode length", "#e67e22"),
     ]

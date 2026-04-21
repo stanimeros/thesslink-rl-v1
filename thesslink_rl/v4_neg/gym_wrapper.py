@@ -140,6 +140,7 @@ class GridNegotiationGymEnv(gym.Env):
         if truncated and not done:
             for i in range(self.n_agents):
                 rewards[i] += _NEG_TIMEOUT_PENALTY
+        # Golden-mean optimal: agreed POI == argmax ∏_a scores (see evaluation).
         agreed_optimal = done and (self._agreed_poi == self._optimal_poi)
         info: dict[str, Any] = {
             "battle_won": float(done),

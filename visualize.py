@@ -143,7 +143,11 @@ def plot_comparison_curves(
 
     panels = [
         ("test_negotiation_agreed_mean", "Agreement rate (%)", True),
-        ("test_negotiation_optimal_mean", "Golden-mean agreement (%)", True),
+        (
+            "test_negotiation_optimal_mean",
+            "Golden-mean negotiation — optimal agreement (%)",
+            True,
+        ),
         ("test_battle_won_mean", "Reach rate (%)", True),
         ("test_ep_length_mean", "Episode length", False),
     ]

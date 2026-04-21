@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Compare ThessLink env versions on test metrics from Sacred ``metrics.json``.
 
-Reads **AGR** and **GM** (golden-mean negotiation) from **negotiation-only** envs
-(``*-neg``) and **REACH** from **navigation-only** envs (``*-nav``). **v2** is the
-joint full task: all three metrics come from ``GridNegotiation-v2``.
+Reads **AGR** (any agreement) and **GM** (golden-mean-optimal agreement: test
+episodes where the agreed POI equals ``optimal_poi`` from
+``evaluation.golden_mean_vector`` / ``optimal_poi`` — mutually strong negotiation)
+from **negotiation-only** envs (``*-neg``) and **REACH** from **navigation-only**
+envs (``*-nav``). **v2** is the joint full task: all three metrics come from
+``GridNegotiation-v2``.
 
 **v3** / **v4** rows are **merged**: neg + nav (two specialist policies), one row
 per algorithm.
@@ -70,7 +73,7 @@ V4_NEG = "GridNegotiation-v4-neg"
 V4_NAV = "GridNegotiation-v4-nav"
 
 KEY_AGR = "test_negotiation_agreed_mean"
-KEY_GM = "test_negotiation_optimal_mean"
+KEY_GM = "test_negotiation_optimal_mean"  # mean( agreed POI == golden-mean-optimal POI )
 KEY_REACH = "test_battle_won_mean"
 
 # Trailing mean window for version-compare curves (matches ``visualize.py``).

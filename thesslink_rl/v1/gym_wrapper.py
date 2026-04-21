@@ -146,6 +146,7 @@ class GridNegotiationGymEnv(gym.Env):
             "reached_poi" in infos_d.get(a, {}) for a in agents
         )
         negotiation_agreed = self._env.agreed_poi is not None
+        # Golden-mean optimal: agreed POI == argmax ∏_a scores (see evaluation).
         agreed_optimal = (
             negotiation_agreed and self._agreed_poi == self._optimal_poi
         )

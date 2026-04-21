@@ -106,6 +106,12 @@ $$
 
 That scalar multiplies the agreement and navigation bonuses in the table above.
 
+**Golden-mean negotiation:** the same product ``g_k`` defines the *best* meeting POI
+``argmax_k g_k`` (see ``thesslink_rl.evaluation.optimal_poi``). In logs and plots,
+**golden-mean** / **GM** means negotiators agreed on exactly that POI — a strong
+mutual deal, stricter than mere **agreement** (any POI). Sacred reports it as
+``test_negotiation_optimal_mean``.
+
 ![Agent evaluation heatmaps: same map, different POI scores and preference fields for two agent types](plots/v2/eval_heatmaps.png)
 
 ## Plots and replays
@@ -118,11 +124,11 @@ Outputs under `plots/<env_tag>/` (e.g. `plots/v2/`):
 
 ![Training curves — all algorithms](plots/v2/training_curves-all.png)
 
-**MAPPO** — episode replay (agreement **100%**, golden-mean **93.3%**, reach **100%**)
+**MAPPO** — episode replay (agreement **100%**, golden-mean optimal **93.3%**, reach **100%**)
 
 ![Episode replay — MAPPO](plots/v2/episode_replay-mappo.gif)
 
-**IQL** — episode replay (agreement **100%**, golden-mean **96.9%**, reach **100%**)
+**IQL** — episode replay (agreement **100%**, golden-mean optimal **96.9%**, reach **100%**)
 
 ![Episode replay — IQL](plots/v2/episode_replay-iql.gif)
 

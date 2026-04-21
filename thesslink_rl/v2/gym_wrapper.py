@@ -11,7 +11,8 @@ Negotiation shaping (individual per-agent rewards):
 
 Negotiation common reward:
   - Agreement bonus  (+10.0 * quality): when both agents lock in, where
-    quality = score_a * score_b (golden mean)
+    ``quality = negotiation_quality(...)`` uses the per-POI product ``g_k`` from
+    ``evaluation.golden_mean_vector`` (golden-mean / mutually balanced compromise)
 
 Navigation shaping:
   - Potential-based shaping: gamma * Phi(s') - Phi(s) each step, where
@@ -239,6 +240,7 @@ class GridNegotiationGymEnv(gym.Env):
             "reached_poi" in infos_d.get(a, {}) for a in agents
         )
         negotiation_agreed = self._env.agreed_poi is not None
+        # Golden-mean optimal: agreed POI == argmax of ∏_a POI scores (see evaluation).
         agreed_optimal = (
             negotiation_agreed and self._agreed_poi == self._optimal_poi
         )
