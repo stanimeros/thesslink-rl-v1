@@ -11,6 +11,7 @@
 #   ./train.sh --env v4_neg_g32 # v4-neg on a 32×32 grid
 #   ./train.sh --env v4_nav_g32 # v4-nav on a 32×32 grid
 #   ./train.sh # prompts for env selector (see env_catalog) if stdin is a TTY
+#   ./train.sh --quick --env v2  # skip git-reset + kill; scoped wipe (safe for concurrent runs)
 #   ./train.sh --status   # live dashboard (watch -n 2; Ctrl+C to stop)
 #   ./train.sh --kill     # kill all running training processes
 #
@@ -88,8 +89,18 @@ kill_training() {
 prepare_results_tree() {
     local phase="$1"
     local label="${ENV_LABEL:-${THESSLINK_ENV:-${THESSLINK_ENV_VERSION:-unknown}}}"
-    log "Wiping all training outputs ($phase): $RESULTS_DIR/{sacred,models,logs}"
-    rm -rf "$RESULTS_DIR_ABS/sacred" "$RESULTS_DIR_ABS/models" "$RESULTS_DIR_ABS/logs"
+    if [[ "${QUICK:-false}" == true ]]; then
+        local cfg="${ENV_CONFIG:-$label}"
+        log "Wiping version-scoped training outputs ($phase) for: ${label}"
+        rm -rf "$LOGS_ROOT/${label}"
+        find "$RESULTS_DIR_ABS/sacred" -mindepth 1 -maxdepth 5 \
+            -type d -name "*${cfg}*" -exec rm -rf {} + 2>/dev/null || true
+        find "$RESULTS_DIR_ABS/models" -mindepth 1 -maxdepth 5 \
+            -type d -name "*${cfg}*" -exec rm -rf {} + 2>/dev/null || true
+    else
+        log "Wiping all training outputs ($phase): $RESULTS_DIR/{sacred,models,logs}"
+        rm -rf "$RESULTS_DIR_ABS/sacred" "$RESULTS_DIR_ABS/models" "$RESULTS_DIR_ABS/logs"
+    fi
     mkdir -p "$RESULTS_DIR_ABS/sacred" "$RESULTS_DIR_ABS/models" "$LOGS_ROOT/${label}"
 }
 
@@ -178,11 +189,17 @@ if [[ "${1:-}" == "--kill" ]]; then
     exit 0
 fi
 
-# Env selector for this run (exports THESSLINK_ENV for config.py + smoke_test).
-if [[ "${1:-}" == "--env" && -n "${2:-}" ]]; then
-    export THESSLINK_ENV="$2"
-    shift 2
-fi
+# Env selector + optional flags (--quick, --env; order-independent).
+QUICK=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --quick) QUICK=true; shift ;;
+        --env)
+            [[ -n "${2:-}" ]] || { err "--env requires a value"; exit 1; }
+            export THESSLINK_ENV="$2"; shift 2 ;;
+        *) break ;;
+    esac
+done
 
 
 if [[ -z "${THESSLINK_ENV:-}" && -z "${THESSLINK_ENV_VERSION:-}" ]]; then
@@ -224,12 +241,14 @@ ALGOS=("${ALL_ALGOS[@]}")
 
 # ── Setup ────────────────────────────────────────────────────────────────
 
-log "Pulling latest changes..."
-git fetch origin main
-git reset --hard origin/main
+if [[ "$QUICK" == false ]]; then
+    log "Pulling latest changes..."
+    git fetch origin main
+    git reset --hard origin/main
 
-log "Killing previous training processes..."
-kill_training
+    log "Killing previous training processes..."
+    kill_training
+fi
 
 # ── Virtualenv ───────────────────────────────────────────────────────────
 
