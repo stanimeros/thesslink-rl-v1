@@ -242,10 +242,6 @@ ALGOS=("${ALL_ALGOS[@]}")
 # ── Setup ────────────────────────────────────────────────────────────────
 
 if [[ "$QUICK" == false ]]; then
-    log "Pulling latest changes..."
-    git fetch origin main
-    git reset --hard origin/main
-
     log "Killing previous training processes..."
     kill_training
 fi
