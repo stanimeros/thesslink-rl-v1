@@ -15,12 +15,9 @@
 #   ./train.sh --status   # live dashboard (watch -n 2; Ctrl+C to stop)
 #   ./train.sh --kill     # kill all running training processes
 #
-# Weights & Biases (metrics / charts only — checkpoints stay local under results/models):
-#   Defaults: entity aid26006-university-of-macedonia, project thesslink-rl (override with
-#   WANDB_ENTITY / WANDB_PROJECT or repo-root .env). W&B is on unless you pass --no-wandb.
-#   ./train.sh --env v2_g32 --no-wandb   # skip W&B for this run
-#   ./train.sh --env v2 --wandb-entity other --wandb-project other   # override for one run
-#   ./train.sh ... --wandb-mode offline   # or WANDB_MODE=offline in .env; then wandb sync
+# Weights & Biases (metrics only; checkpoints stay local under results/models):
+#   Always on (entity aid26006-university-of-macedonia, project thesslink-rl). Override with
+#   WANDB_ENTITY / WANDB_PROJECT / WANDB_MODE in the environment.
 #
 # Results layout (epymarl/results; Sacred local_results_path):
 #   logs/v<N>/<alg>.log   — nohup (per env version; v2 and v3 runs are kept separate)
@@ -40,12 +37,6 @@ if [[ -L "$_script" ]] && command -v readlink >/dev/null; then
 fi
 SCRIPT_DIR="$(cd "$(dirname "$_script")" && pwd)"
 cd "$SCRIPT_DIR"
-if [[ -f "$SCRIPT_DIR/.env" ]]; then
-    set -a
-    # shellcheck disable=SC1091
-    source "$SCRIPT_DIR/.env"
-    set +a
-fi
 
 # ``TRAINING_ALGOS`` lives in ``thesslink_rl/constants.py``. Load that file alone so
 # this works before the venv exists (importing ``thesslink_rl`` would pull in gymnasium).
@@ -202,10 +193,8 @@ if [[ "${1:-}" == "--kill" ]]; then
     exit 0
 fi
 
-# Env selector + optional flags (--quick, --env, --wandb*, --no-wandb; order-independent).
+# Env selector + optional flags (--quick, --env; order-independent).
 QUICK=false
-NO_WANDB=false
-USE_WANDB=false
 WANDB_ENTITY_VAL="${WANDB_ENTITY:-aid26006-university-of-macedonia}"
 WANDB_PROJECT_VAL="${WANDB_PROJECT:-thesslink-rl}"
 WANDB_MODE_VAL="${WANDB_MODE:-online}"
@@ -215,28 +204,9 @@ while [[ $# -gt 0 ]]; do
         --env)
             [[ -n "${2:-}" ]] || { err "--env requires a value"; exit 1; }
             export THESSLINK_ENV="$2"; shift 2 ;;
-        --no-wandb) NO_WANDB=true; shift ;;
-        --wandb) USE_WANDB=true; shift ;;
-        --wandb-entity)
-            [[ -n "${2:-}" ]] || { err "--wandb-entity requires a value"; exit 1; }
-            WANDB_ENTITY_VAL="$2"; shift 2 ;;
-        --wandb-project)
-            [[ -n "${2:-}" ]] || { err "--wandb-project requires a value"; exit 1; }
-            WANDB_PROJECT_VAL="$2"; shift 2 ;;
-        --wandb-mode)
-            [[ -n "${2:-}" ]] || { err "--wandb-mode requires online or offline"; exit 1; }
-            WANDB_MODE_VAL="$2"; shift 2 ;;
         *) break ;;
     esac
 done
-
-if [[ "$NO_WANDB" == true ]]; then
-    USE_WANDB=false
-elif [[ "$USE_WANDB" == true ]]; then
-    :
-elif [[ -n "$WANDB_ENTITY_VAL" && -n "$WANDB_PROJECT_VAL" ]]; then
-    USE_WANDB=true
-fi
 
 if [[ -z "${THESSLINK_ENV:-}" && -z "${THESSLINK_ENV_VERSION:-}" ]]; then
     if [[ -t 0 ]]; then
@@ -269,11 +239,9 @@ mod.resolve_env_choice(choice)
 fi
 export THESSLINK_ENV
 
-if [[ "$USE_WANDB" == true ]]; then
-    if [[ "$WANDB_MODE_VAL" != "online" && "$WANDB_MODE_VAL" != "offline" ]]; then
-        err "--wandb-mode must be online or offline (EPyMARL logging)."
-        exit 1
-    fi
+if [[ "$WANDB_MODE_VAL" != "online" && "$WANDB_MODE_VAL" != "offline" ]]; then
+    err "WANDB_MODE must be online or offline (got: ${WANDB_MODE_VAL})."
+    exit 1
 fi
 
 if [[ $# -gt 0 ]]; then
@@ -311,9 +279,7 @@ PY
 )"
 
 log "Environment: ${ENV_LABEL} (env-config=${ENV_CONFIG})"
-if [[ "$USE_WANDB" == true ]]; then
-    log "Weights & Biases: project=${WANDB_PROJECT_VAL} entity=${WANDB_ENTITY_VAL} mode=${WANDB_MODE_VAL}"
-fi
+log "Weights & Biases: project=${WANDB_PROJECT_VAL} entity=${WANDB_ENTITY_VAL} mode=${WANDB_MODE_VAL}"
 
 # ── EPyMARL ──────────────────────────────────────────────────────────────
 
@@ -395,17 +361,14 @@ algo_extra_args() {
 log "Launching ${#ALGOS[@]} algorithm(s): ${ALGOS[*]}"
 echo ""
 
-WANDB_WITH=()
-if [[ "$USE_WANDB" == true ]]; then
-    # Metrics / config only; never upload checkpoints (local save_model paths unchanged).
-    WANDB_WITH+=(
-        use_wandb=True
-        "wandb_team=${WANDB_ENTITY_VAL}"
-        "wandb_project=${WANDB_PROJECT_VAL}"
-        "wandb_mode=${WANDB_MODE_VAL}"
-        wandb_save_model=False
-    )
-fi
+# Metrics / config only; never upload checkpoints (local save_model unchanged).
+WANDB_WITH=(
+    use_wandb=True
+    "wandb_team=${WANDB_ENTITY_VAL}"
+    "wandb_project=${WANDB_PROJECT_VAL}"
+    "wandb_mode=${WANDB_MODE_VAL}"
+    wandb_save_model=False
+)
 
 PIDS=()
 for alg in "${ALGOS[@]}"; do
