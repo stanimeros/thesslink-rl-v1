@@ -22,6 +22,25 @@ def _parse_env_key(yaml_path: Path) -> str | None:
     return None
 
 
+def _parse_env_grid_size(yaml_path: Path) -> int:
+    """Parse grid_size from env_args block; returns 10 if not present."""
+    try:
+        in_env_args = False
+        for line in yaml_path.read_text().splitlines():
+            stripped = line.strip()
+            if stripped == "env_args:":
+                in_env_args = True
+                continue
+            if in_env_args:
+                if stripped.startswith("grid_size:"):
+                    return int(stripped.split(":", 1)[1].strip())
+                if stripped and not stripped.startswith("#") and not line[0:1] in (" ", "\t"):
+                    in_env_args = False
+    except (OSError, ValueError):
+        pass
+    return 10
+
+
 def _alias_from_env_config(env_config: str) -> str:
     if env_config == "thesslink":
         return "0"
@@ -53,12 +72,14 @@ def available_env_catalog() -> list[dict]:
         alias = _alias_from_env_config(env_config)
         m = re.search(r"-v(\d+)", marker)
         base_version = int(m.group(1)) if m else 0
+        grid_size = _parse_env_grid_size(path)
         entries.append(
             {
                 "env_config": env_config,
                 "alias": alias,
                 "marker": marker,
                 "base_version": base_version,
+                "grid_size": grid_size,
                 "yaml_path": str(path),
             }
         )

@@ -3,11 +3,13 @@
 # ThessLink RL -- Parallel training launcher
 #
 # Usage:
-#   ./train.sh --env 2        # IQL, QMIX, VDN, MAPPO, COMA on ThessLink v2
-#   ./train.sh --env v3_neg   # negotiation-only split environment
-#   ./train.sh --env v3_nav   # navigation-only split environment
-#   ./train.sh --env v4_neg   # v4 negotiation rewards (tiered agreement + timeout)
-#   ./train.sh --env v4_nav   # v4 navigation (mixed agreed POI + timeout penalty)
+#   ./train.sh --env 2          # IQL, QMIX, VDN, MAPPO, COMA on ThessLink v2 (10×10)
+#   ./train.sh --env v4_neg     # v4 negotiation rewards (tiered agreement + timeout)
+#   ./train.sh --env v4_nav     # v4 navigation (mixed agreed POI + timeout penalty)
+#   ./train.sh --env v2_g32     # v2 on a 32×32 grid  (time_limit=480)
+#   ./train.sh --env v2_g64     # v2 on a 64×64 grid  (time_limit=960)
+#   ./train.sh --env v4_neg_g32 # v4-neg on a 32×32 grid
+#   ./train.sh --env v4_nav_g32 # v4-nav on a 32×32 grid
 #   ./train.sh # prompts for env selector (see env_catalog) if stdin is a TTY
 #   ./train.sh --status   # live dashboard (watch -n 2; Ctrl+C to stop)
 #   ./train.sh --kill     # kill all running training processes
@@ -181,6 +183,7 @@ if [[ "${1:-}" == "--env" && -n "${2:-}" ]]; then
     export THESSLINK_ENV="$2"
     shift 2
 fi
+
 
 if [[ -z "${THESSLINK_ENV:-}" && -z "${THESSLINK_ENV_VERSION:-}" ]]; then
     if [[ -t 0 ]]; then

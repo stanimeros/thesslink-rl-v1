@@ -67,14 +67,15 @@ def bfs_distances(
 
     Returns a float grid where unreachable / obstacle cells are ``np.inf``.
     """
-    dist = np.full((GRID_SIZE, GRID_SIZE), np.inf, dtype=np.float64)
+    rows, cols = obstacle_map.shape
+    dist = np.full((rows, cols), np.inf, dtype=np.float64)
     dist[origin[0], origin[1]] = 0.0
     queue: deque[tuple[int, int]] = deque([origin])
     while queue:
         r, c = queue.popleft()
         for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
             nr, nc = r + dr, c + dc
-            if 0 <= nr < GRID_SIZE and 0 <= nc < GRID_SIZE:
+            if 0 <= nr < rows and 0 <= nc < cols:
                 if not obstacle_map[nr, nc] and dist[nr, nc] == np.inf:
                     dist[nr, nc] = dist[r, c] + 1
                     queue.append((nr, nc))
@@ -207,13 +208,14 @@ def compute_eval_heatmap(
         finite = b[np.isfinite(b)]
         poi_max_bfs.append(float(finite.max()) if len(finite) > 0 else 1.0)
 
+    rows, cols = obstacle_map.shape
     best_poi_score = float(poi_scores.max())
     if best_poi_score == 0:
-        return np.zeros((GRID_SIZE, GRID_SIZE), dtype=np.float32)
+        return np.zeros((rows, cols), dtype=np.float32)
 
-    heatmap = np.zeros((GRID_SIZE, GRID_SIZE), dtype=np.float32)
-    for r in range(GRID_SIZE):
-        for c in range(GRID_SIZE):
+    heatmap = np.zeros((rows, cols), dtype=np.float32)
+    for r in range(rows):
+        for c in range(cols):
             if obstacle_map[r, c]:
                 continue
             best_val = 0.0

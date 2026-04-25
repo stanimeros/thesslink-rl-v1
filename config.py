@@ -27,8 +27,11 @@ if _BASE_VERSION == 2:
     from thesslink_rl.v2 import GridNegotiationEnv
 elif _BASE_VERSION == 1:
     from thesslink_rl.v1 import GridNegotiationEnv
+elif _BASE_VERSION >= 3:
+    from thesslink_rl.v3 import GridNegotiationEnv
 else:
     from thesslink_rl.v0 import GridNegotiationEnv
 
 ENV_CONFIG = ENV_SELECTOR
 ENV_TAG = ENV_LABEL if re.fullmatch(r"v\d+_.+", ENV_LABEL) else f"v{_BASE_VERSION}"
+ENV_GRID_SIZE: int = _choice.get("grid_size", 10)

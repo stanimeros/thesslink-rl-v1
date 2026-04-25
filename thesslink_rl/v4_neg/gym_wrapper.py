@@ -14,6 +14,7 @@ from ..v3.environment import (
     ACT_ACCEPT,
     ACT_SUGGEST_BASE,
     ACTION_DIM,
+    GRID_SIZE,
     NUM_AGENTS,
     NUM_SUGGEST_ACTIONS,
     OBS_FLAT_SIZE,
@@ -41,6 +42,7 @@ class GridNegotiationGymEnv(gym.Env):
         agent1_config: str | None = None,
         render_mode: str | None = None,
         seed: int = 0,
+        grid_size: int = GRID_SIZE,
         **kwargs: Any,
     ):
         super().__init__()
@@ -53,6 +55,7 @@ class GridNegotiationGymEnv(gym.Env):
             agent_configs=self._agent_configs,
             render_mode=render_mode,
             seed=seed,
+            grid_size=grid_size,
         )
         self.n_agents = NUM_AGENTS
         self.action_space = spaces.Tuple(

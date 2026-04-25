@@ -223,12 +223,12 @@ def plot_per_algo_curves(runs: dict[str, dict], window: int = 10):
 
 def generate_example_plots() -> None:
     """Exactly three files when no training metrics: one demo per plot type."""
-    from config import ENV_TAG, GridNegotiationEnv
+    from config import ENV_GRID_SIZE, ENV_TAG, GridNegotiationEnv
 
     cfg_0 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "human.yaml"))
     cfg_1 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "taxi.yaml"))
     agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
-    env = GridNegotiationEnv(agent_configs=agent_configs, seed=SEED)
+    env = GridNegotiationEnv(agent_configs=agent_configs, seed=SEED, grid_size=ENV_GRID_SIZE)
     env.reset(seed=SEED)
     _sync_poi_scores(env, agent_configs)
 
@@ -288,13 +288,13 @@ def generate_heatmaps_and_replays(
     Episode GIFs are written **only** when a checkpoint can be loaded from
     *models_root* (default: *results_dir*/models). No random-policy GIFs.
     """
-    from config import ENV_CONFIG, ENV_SACRED_MARKER, ENV_TAG, GridNegotiationEnv
+    from config import ENV_CONFIG, ENV_GRID_SIZE, ENV_SACRED_MARKER, ENV_TAG, GridNegotiationEnv
 
     cfg_0 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "human.yaml"))
     cfg_1 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "taxi.yaml"))
     agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
 
-    env = GridNegotiationEnv(agent_configs=agent_configs, seed=SEED)
+    env = GridNegotiationEnv(agent_configs=agent_configs, seed=SEED, grid_size=ENV_GRID_SIZE)
 
     env.reset(seed=SEED)
     _sync_poi_scores(env, agent_configs)

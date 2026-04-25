@@ -66,11 +66,52 @@ VERSION_COLOR = {
     "v4_merged": "#e67e22",  # orange
 }
 
-V2_MARKER = "GridNegotiation-v2"
-V3_NEG = "GridNegotiation-v3-neg"
-V3_NAV = "GridNegotiation-v3-nav"
-V4_NEG = "GridNegotiation-v4-neg"
-V4_NAV = "GridNegotiation-v4-nav"
+_DEFAULT_MARKERS = {
+    "v2": "GridNegotiation-v2",
+    "v3_neg": "GridNegotiation-v3-neg",
+    "v3_nav": "GridNegotiation-v3-nav",
+    "v4_neg": "GridNegotiation-v4-neg",
+    "v4_nav": "GridNegotiation-v4-nav",
+}
+_GRID_MARKERS: dict[int, dict[str, str]] = {
+    32: {
+        "v2":    "GridNegotiation-v2-g32",
+        "v4_neg": "GridNegotiation-v4-neg-g32",
+        "v4_nav": "GridNegotiation-v4-nav-g32",
+    },
+    64: {
+        "v2":    "GridNegotiation-v2-g64",
+        "v4_neg": "GridNegotiation-v4-neg-g64",
+        "v4_nav": "GridNegotiation-v4-nav-g64",
+    },
+}
+
+# Set at runtime by _init_markers()
+V2_MARKER = _DEFAULT_MARKERS["v2"]
+V3_NEG    = _DEFAULT_MARKERS["v3_neg"]
+V3_NAV    = _DEFAULT_MARKERS["v3_nav"]
+V4_NEG    = _DEFAULT_MARKERS["v4_neg"]
+V4_NAV    = _DEFAULT_MARKERS["v4_nav"]
+
+
+def _init_markers(grid: int | None) -> None:
+    """Switch module-level markers to the requested grid size (None = default 10)."""
+    global V2_MARKER, V3_NEG, V3_NAV, V4_NEG, V4_NAV
+    if grid is None or grid == 10:
+        V2_MARKER = _DEFAULT_MARKERS["v2"]
+        V3_NEG    = _DEFAULT_MARKERS["v3_neg"]
+        V3_NAV    = _DEFAULT_MARKERS["v3_nav"]
+        V4_NEG    = _DEFAULT_MARKERS["v4_neg"]
+        V4_NAV    = _DEFAULT_MARKERS["v4_nav"]
+    else:
+        m = _GRID_MARKERS.get(grid)
+        if m is None:
+            raise ValueError(f"No markers defined for grid={grid}. Add to _GRID_MARKERS.")
+        V2_MARKER = m["v2"]
+        V3_NEG    = _DEFAULT_MARKERS["v3_neg"]  # no grid variant for v3
+        V3_NAV    = _DEFAULT_MARKERS["v3_nav"]
+        V4_NEG    = m["v4_neg"]
+        V4_NAV    = m["v4_nav"]
 
 KEY_AGR = "test_negotiation_agreed_mean"
 KEY_GM = "test_negotiation_optimal_mean"  # mean( agreed POI == golden-mean-optimal POI )
@@ -265,7 +306,8 @@ def plot_version_comparison_curves(
         return None
 
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "version_compare-curves.png"
+    _gsuffix = f"-g{V2_MARKER.split('-g')[-1]}" if "-g" in V2_MARKER else ""
+    out_path = out_dir / f"version_compare-curves{_gsuffix}.png"
 
     n_algos = len(algos)
     fig_h = max(4.0, 2.65 * n_algos)
@@ -332,9 +374,15 @@ def plot_version_comparison_curves(
         bbox_to_anchor=(0.5, 0.99),
     )
 
+    grid_label = f"{V2_MARKER.split('-g')[-1]}×" * (2 if "-g" in V2_MARKER else 0) or "10×10"
+    if "-g" in V2_MARKER:
+        _n = V2_MARKER.split("-g")[-1]
+        grid_label = f"{_n}×{_n}"
+    else:
+        grid_label = "10×10"
     fig.suptitle(
-        "Env versions: v2 = joint; v3/v4 = merged (GM from neg, REACH from nav; "
-        f"x-axis = per-run timesteps; curves = {smooth_w}-pt trailing mean)",
+        f"Env versions: v2 = joint; v3/v4 = merged  |  grid {grid_label}  |  "
+        f"GM from neg, REACH from nav; curves = {smooth_w}-pt trailing mean",
         fontsize=10,
         y=1.02,
     )
@@ -354,6 +402,13 @@ def main() -> int:
         help="Extra base dir(s) containing sacred/ (can repeat). Repo results/ checked by default.",
     )
     parser.add_argument(
+        "--grid",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Grid size to compare (10=default, 32, 64). Selects the matching Sacred markers.",
+    )
+    parser.add_argument(
         "--csv",
         type=Path,
         default=None,
@@ -371,6 +426,7 @@ def main() -> int:
         help="Do not write comparison curves PNG.",
     )
     args = parser.parse_args()
+    _init_markers(args.grid)
     roots = _sacred_roots(args.results_dir)
 
     if not roots:

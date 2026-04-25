@@ -36,3 +36,37 @@ register(
     id="thesslink/GridNegotiation-v4-nav",
     entry_point="thesslink_rl.v4_nav.gym_wrapper:GridNegotiationGymEnv",
 )
+
+# 32×32 grid variants
+register(
+    id="thesslink/GridNegotiation-v2-g32",
+    entry_point="thesslink_rl.v2.gym_wrapper:GridNegotiationGymEnv",
+    kwargs={"grid_size": 32},
+)
+register(
+    id="thesslink/GridNegotiation-v4-neg-g32",
+    entry_point="thesslink_rl.v4_neg.gym_wrapper:GridNegotiationGymEnv",
+    kwargs={"grid_size": 32},
+)
+register(
+    id="thesslink/GridNegotiation-v4-nav-g32",
+    entry_point="thesslink_rl.v4_nav.gym_wrapper:GridNegotiationGymEnv",
+    kwargs={"grid_size": 32},
+)
+
+# 64×64 grid variants
+register(
+    id="thesslink/GridNegotiation-v2-g64",
+    entry_point="thesslink_rl.v2.gym_wrapper:GridNegotiationGymEnv",
+    kwargs={"grid_size": 64},
+)
+register(
+    id="thesslink/GridNegotiation-v4-neg-g64",
+    entry_point="thesslink_rl.v4_neg.gym_wrapper:GridNegotiationGymEnv",
+    kwargs={"grid_size": 64},
+)
+register(
+    id="thesslink/GridNegotiation-v4-nav-g64",
+    entry_point="thesslink_rl.v4_nav.gym_wrapper:GridNegotiationGymEnv",
+    kwargs={"grid_size": 64},
+)

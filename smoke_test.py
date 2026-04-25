@@ -223,7 +223,8 @@ def generate_plots(metrics: dict, algo: str):
     cfg_1 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "taxi.yaml"))
     agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
 
-    env = GridNegotiationEnv(agent_configs=agent_configs, seed=42)
+    from config import ENV_GRID_SIZE
+    env = GridNegotiationEnv(agent_configs=agent_configs, seed=42, grid_size=ENV_GRID_SIZE)
     env.reset(seed=42)
 
     agents = env.possible_agents

@@ -52,15 +52,14 @@ from ..evaluation import (
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent
 
 _SHAPING_GAMMA = 0.99
-_MAX_BFS_DIST = float(GRID_SIZE * GRID_SIZE)
 
 
-def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray) -> float:
+def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray, max_bfs_dist: float) -> float:
     """Phi(s) = -BFS distance from agent to target POI / max_dist."""
     d = bfs_grid[agent_pos[0], agent_pos[1]]
     if np.isinf(d):
         return -1.0
-    return -d / _MAX_BFS_DIST
+    return -d / max_bfs_dist
 
 
 class GridNegotiationGymEnv(gym.Env):
@@ -74,6 +73,7 @@ class GridNegotiationGymEnv(gym.Env):
         agent1_config: str | None = None,
         render_mode: str | None = None,
         seed: int = 0,
+        grid_size: int = GRID_SIZE,
         **kwargs: Any,
     ):
         super().__init__()
@@ -87,7 +87,9 @@ class GridNegotiationGymEnv(gym.Env):
             agent_configs=self._agent_configs,
             render_mode=render_mode,
             seed=seed,
+            grid_size=grid_size,
         )
+        self._max_bfs_dist = float(grid_size * grid_size)
 
         self.n_agents = NUM_AGENTS
 
@@ -203,7 +205,7 @@ class GridNegotiationGymEnv(gym.Env):
                 self._target_bfs = bfs_distances(target, self._env.obstacle_map)
                 for a in agents:
                     pos = tuple(self._env.agent_positions[a])
-                    self._prev_potentials[a] = _potential(pos, self._target_bfs)
+                    self._prev_potentials[a] = _potential(pos, self._target_bfs, self._max_bfs_dist)
 
         # ── Navigation phase rewards ─────────────────────────────────────
         if prev_phase == "navigation" and self._agreed_poi is not None and self._target_bfs is not None:
@@ -216,7 +218,7 @@ class GridNegotiationGymEnv(gym.Env):
                     continue
 
                 cur_pos = tuple(self._env.agent_positions[a])
-                cur_phi = _potential(cur_pos, self._target_bfs)
+                cur_phi = _potential(cur_pos, self._target_bfs, self._max_bfs_dist)
                 prev_phi = self._prev_potentials.get(a, cur_phi)
 
                 rewards[i] += _SHAPING_GAMMA * cur_phi - prev_phi

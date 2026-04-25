@@ -22,7 +22,7 @@ import numpy as np
 
 ENV_TAG = "v2"
 GRID_SIZE = 10
-NUM_OBSTACLES = 10
+NUM_OBSTACLES = 10  # default for GRID_SIZE=10 (10% density)
 NUM_POIS = 3
 NUM_AGENTS = 2
 
@@ -68,9 +68,13 @@ class GridNegotiationEnv:
         agent_configs: dict | None = None,
         render_mode: Optional[str] = None,
         seed: int = 0,
+        grid_size: int = GRID_SIZE,
+        num_obstacles: int | None = None,
     ):
         self.render_mode = render_mode
         self._seed = seed
+        self.grid_size = grid_size
+        self.num_obstacles = num_obstacles if num_obstacles is not None else grid_size * grid_size // 10
         self.possible_agents = [f"agent_{i}" for i in range(NUM_AGENTS)]
         self.agents: List[str] = list(self.possible_agents)
         self.timestep = 0
@@ -191,30 +195,30 @@ class GridNegotiationEnv:
     # --- Helpers ----------------------------------------------------------
 
     def _build_static_map(self):
-        self.obstacle_map = np.zeros((GRID_SIZE, GRID_SIZE), dtype=bool)
+        self.obstacle_map = np.zeros((self.grid_size, self.grid_size), dtype=bool)
         placed = 0
-        while placed < NUM_OBSTACLES:
-            r, c = self._rng.randint(0, GRID_SIZE, size=2)
+        while placed < self.num_obstacles:
+            r, c = self._rng.randint(0, self.grid_size, size=2)
             if not self.obstacle_map[r, c]:
                 self.obstacle_map[r, c] = True
                 placed += 1
 
         self.poi_positions: list[tuple[int, int]] = []
         while len(self.poi_positions) < NUM_POIS:
-            r, c = int(self._rng.randint(0, GRID_SIZE)), int(self._rng.randint(0, GRID_SIZE))
+            r, c = int(self._rng.randint(0, self.grid_size)), int(self._rng.randint(0, self.grid_size))
             if not self.obstacle_map[r, c] and (r, c) not in self.poi_positions:
                 self.poi_positions.append((r, c))
 
     def _random_free_cell(self) -> list[int]:
         while True:
-            r, c = int(self._rng.randint(0, GRID_SIZE)), int(self._rng.randint(0, GRID_SIZE))
+            r, c = int(self._rng.randint(0, self.grid_size)), int(self._rng.randint(0, self.grid_size))
             if not self.obstacle_map[r, c] and (r, c) not in self.poi_positions:
                 return [r, c]
 
     def _apply_move(self, agent: str, action: int):
         dr, dc = [(0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)][action]
         r, c = self.agent_positions[agent]
-        nr, nc = max(0, min(GRID_SIZE - 1, r + dr)), max(0, min(GRID_SIZE - 1, c + dc))
+        nr, nc = max(0, min(self.grid_size - 1, r + dr)), max(0, min(self.grid_size - 1, c + dc))
         if not self.obstacle_map[nr, nc]:
             self.agent_positions[agent] = [nr, nc]
 
@@ -222,11 +226,11 @@ class GridNegotiationEnv:
         """Cast rays in N, S, E, W; return normalised distance to nearest obstacle."""
         distances = np.ones(4, dtype=np.float32)
         directions = [(-1, 0), (1, 0), (0, 1), (0, -1)]  # N, S, E, W
-        max_dist = GRID_SIZE - 1
+        max_dist = self.grid_size - 1
         for i, (dr, dc) in enumerate(directions):
-            for step in range(1, GRID_SIZE):
+            for step in range(1, self.grid_size):
                 nr, nc = r + dr * step, c + dc * step
-                if nr < 0 or nr >= GRID_SIZE or nc < 0 or nc >= GRID_SIZE:
+                if nr < 0 or nr >= self.grid_size or nc < 0 or nc >= self.grid_size:
                     distances[i] = step / max_dist
                     break
                 if self.obstacle_map[nr, nc]:
@@ -258,7 +262,7 @@ class GridNegotiationEnv:
             agreed_onehot[self.agreed_poi] = 1.0
 
         r, c = self.agent_positions[agent]
-        norm = GRID_SIZE - 1
+        norm = self.grid_size - 1
         self_pos = np.array([r / norm, c / norm], dtype=np.float32)
 
         relative_pos = np.zeros(RELATIVE_POS_DIM, dtype=np.float32)
