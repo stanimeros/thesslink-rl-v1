@@ -1,0 +1,14 @@
+env: "gymma"
+
+env_args:
+  key: "thesslink_rl:thesslink/ThessLink-e3-neg-v6-g32"
+  time_limit: 480
+  pretrained_wrapper: null
+  grid_size: 32
+
+common_reward: true
+
+test_greedy: True
+test_nepisode: 32
+runner_log_interval: 2000
+learner_log_interval: 2000
