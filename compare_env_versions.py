@@ -6,14 +6,14 @@ episodes where the agreed POI equals ``optimal_poi`` from
 ``evaluation.golden_mean_vector`` / ``optimal_poi`` — mutually strong negotiation)
 from **negotiation-only** envs (``*-neg``) and **REACH** from **navigation-only**
 envs (``*-nav``). **v2** is the joint full task: all three metrics come from
-``GridNegotiation-v2``.
+``ThessLink-v2``.
 
 **v3** / **v4** rows are **merged**: neg + nav (two specialist policies), one row
 per algorithm.
 
 Sacred layout::
 
-    <results>/sacred/<algo>/thesslink_rl:thesslink/GridNegotiation-v<N>-…/…/metrics.json
+    <results>/sacred/<algo>/thesslink_rl:thesslink/ThessLink-v<N>-…/…/metrics.json
 
 Checks ``results/`` then ``epymarl/results/`` (same order as ``visualize.py``).
 
@@ -35,6 +35,10 @@ from pathlib import Path
 from typing import Any
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
+
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+from thesslink_rl.env_catalog import sacred_path_variants
 
 
 def _load_constants_module() -> Any:
@@ -67,22 +71,22 @@ VERSION_COLOR = {
 }
 
 _DEFAULT_MARKERS = {
-    "v2": "GridNegotiation-v2",
-    "v3_neg": "GridNegotiation-v3-neg",
-    "v3_nav": "GridNegotiation-v3-nav",
-    "v4_neg": "GridNegotiation-v4-neg",
-    "v4_nav": "GridNegotiation-v4-nav",
+    "v2": "ThessLink-v2",
+    "v3_neg": "ThessLink-v3-neg",
+    "v3_nav": "ThessLink-v3-nav",
+    "v4_neg": "ThessLink-v4-neg",
+    "v4_nav": "ThessLink-v4-nav",
 }
 _GRID_MARKERS: dict[int, dict[str, str]] = {
     32: {
-        "v2":    "GridNegotiation-v2-g32",
-        "v4_neg": "GridNegotiation-v4-neg-g32",
-        "v4_nav": "GridNegotiation-v4-nav-g32",
+        "v2":    "ThessLink-v2-g32",
+        "v4_neg": "ThessLink-v4-neg-g32",
+        "v4_nav": "ThessLink-v4-nav-g32",
     },
     64: {
-        "v2":    "GridNegotiation-v2-g64",
-        "v4_neg": "GridNegotiation-v4-neg-g64",
-        "v4_nav": "GridNegotiation-v4-nav-g64",
+        "v2":    "ThessLink-v2-g64",
+        "v4_neg": "ThessLink-v4-neg-g64",
+        "v4_nav": "ThessLink-v4-nav-g64",
     },
 }
 
@@ -179,10 +183,11 @@ def _find_metrics_files(sacred_root: Path, algo: str, path_substring: str) -> li
     algo_dir = sacred_root / algo
     if not algo_dir.is_dir():
         return []
+    needles = sacred_path_variants(path_substring) or (path_substring,)
     return sorted(
         p
         for p in algo_dir.rglob("metrics.json")
-        if path_substring in str(p)
+        if any(n in str(p) for n in needles)
     )
 
 

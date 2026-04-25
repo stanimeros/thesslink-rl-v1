@@ -19,10 +19,12 @@
 #   Always on (entity aid26006-university-of-macedonia, project thesslink-rl). Override with
 #   WANDB_ENTITY / WANDB_PROJECT / WANDB_MODE in the environment.
 #
+# Reproducibility: Sacred ``seed`` (numpy, torch, env) defaults to THESSLINK_SEED or 42.
+#
 # Results layout (epymarl/results; Sacred local_results_path):
 #   logs/v<N>/<alg>.log   — nohup (per env version; v2 and v3 runs are kept separate)
-#   sacred/…/GridNegotiation-v<N>/…
-#   models/…/GridNegotiation-v<N>_…/…
+#   sacred/…/ThessLink-v<N>/…
+#   models/…/ThessLink-v<N>_…/…
 # Before smoke and again before full training: delete all of epymarl/results/{sacred,models,logs}.
 #
 set -euo pipefail
@@ -280,6 +282,8 @@ PY
 
 log "Environment: ${ENV_LABEL} (env-config=${ENV_CONFIG})"
 log "Weights & Biases: project=${WANDB_PROJECT_VAL} entity=${WANDB_ENTITY_VAL} mode=${WANDB_MODE_VAL}"
+SEED="${THESSLINK_SEED:-42}"
+log "RL / env seed (THESSLINK_SEED): ${SEED}"
 
 # ── EPyMARL ──────────────────────────────────────────────────────────────
 
@@ -383,6 +387,7 @@ for alg in "${ALGOS[@]}"; do
         --env-config="$ENV_CONFIG" \
         with \
         local_results_path="$RESULTS_DIR_ABS" \
+        "seed=${SEED}" \
         save_model=True \
         log_interval=20000 \
         test_interval=50000 \

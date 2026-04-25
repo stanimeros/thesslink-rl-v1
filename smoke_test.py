@@ -20,7 +20,7 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")
 
-from thesslink_rl.env_catalog import prompt_help, resolve_env_choice
+from thesslink_rl.env_catalog import prompt_help, resolve_env_choice, sacred_path_variants
 
 
 def _ensure_env_selector_for_smoke() -> None:
@@ -60,8 +60,10 @@ T_MAX = 1000
 LOG_INTERVAL = 50
 TEST_INTERVAL = 250
 SAVE_MODEL_INTERVAL = 500
+# Match train.sh: stable Sacred / numpy / torch / env seed unless overridden.
+SMOKE_SEED = int(os.environ.get("THESSLINK_SEED", "42"), 10)
 
-SACRED_VERSION_MARKER = ENV_SACRED_MARKER
+SACRED_VERSION_MARKERS = sacred_path_variants(ENV_SACRED_MARKER)
 SMOKE_RESULTS_DIR = EPYMARL_DIR / "results"
 
 
@@ -78,8 +80,9 @@ def _latest_sacred_run_for_smoke_algo(algo: str) -> Path:
         if not sacred_algo.is_dir():
             continue
         candidates = [
-            p for p in sacred_algo.rglob("metrics.json")
-            if SACRED_VERSION_MARKER in str(p)
+            p
+            for p in sacred_algo.rglob("metrics.json")
+            if any(m in str(p) for m in SACRED_VERSION_MARKERS)
         ]
         if not candidates:
             continue
@@ -88,7 +91,7 @@ def _latest_sacred_run_for_smoke_algo(algo: str) -> Path:
     bases = ", ".join(str(b) for b in _sacred_results_bases())
     raise FileNotFoundError(
         f"No Sacred tree for {algo_l!r} under sacred/{algo_l}/ in any of: {bases} "
-        f"(need metrics.json with {SACRED_VERSION_MARKER!r} in path)",
+        f"(need metrics.json with a path matching {SACRED_VERSION_MARKERS!r})",
     )
 
 
@@ -100,6 +103,7 @@ def run_training(algo: str) -> Path:
         f"--config={algo}", f"--env-config={ENV_CONFIG}",
         "with",
         f"local_results_path={SMOKE_RESULTS_DIR.resolve()}",
+        f"seed={SMOKE_SEED}",
         f"t_max={T_MAX}",
         f"test_interval={TEST_INTERVAL}",
         f"log_interval={LOG_INTERVAL}",
@@ -293,14 +297,15 @@ def main():
         for algo in TRAINING_ALGOS:
             needle = f"/{algo}_"
             th_files = [
-                p for p in models_root.rglob("*.th")
-                if SACRED_VERSION_MARKER in str(p)
+                p
+                for p in models_root.rglob("*.th")
+                if any(m in str(p) for m in SACRED_VERSION_MARKERS)
                 and needle in str(p).replace("\\", "/").lower()
             ]
             if th_files:
                 latest_th = max(th_files, key=lambda p: p.stat().st_mtime)
                 print(
-                    f"\nLatest checkpoint (smoke, {algo}, {SACRED_VERSION_MARKER}): "
+                    f"\nLatest checkpoint (smoke, {algo}, env path match): "
                     f"{latest_th.parent}",
                 )
     print()

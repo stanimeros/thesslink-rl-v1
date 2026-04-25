@@ -78,7 +78,7 @@ def _algo_run_dirs(models_root: Path, algo: str, env_marker: str) -> list[Path]:
 
     EPyMARL saves under::
 
-      models/<name>_seed<k>_<env_key>/GridNegotiation-v*_<timestamp>/<t_env>/*.th
+      models/<name>_seed<k>_<env_key>/ThessLink-v*_<timestamp>/<t_env>/*.th
 
     So the env version appears in a **nested** folder, not in the top-level name.
     """
@@ -96,7 +96,7 @@ def _algo_run_dirs(models_root: Path, algo: str, env_marker: str) -> list[Path]:
         if env_marker in child.name:
             runs.append(child)
             continue
-        # Normal layout: models/<algo>_.../GridNegotiation-vN_<datetime>/
+        # Normal layout: models/<algo>_.../ThessLink-vN_<datetime>/
         try:
             for sub in child.iterdir():
                 if not sub.is_dir():
@@ -118,7 +118,7 @@ def find_best_checkpoint_timestep_dir(
 ) -> Path | None:
     """Pick the saved checkpoint whose timestep is closest to best test return.
 
-    Layout (EPyMARL): ``<models>/<name>_seed*_...GridNegotiation-v*.../<t_env>/*.th``
+    Layout (EPyMARL): ``<models>/<name>_seed*_...ThessLink-v*.../<t_env>/*.th``
     """
     root = models_root if models_root is not None else (results_dir / "models")
     target_t = best_test_env_timestep(metrics)

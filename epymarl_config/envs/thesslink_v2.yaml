@@ -1,7 +1,7 @@
 env: "gymma"
 
 env_args:
-  key: "thesslink_rl:thesslink/GridNegotiation-v2"
+  key: "thesslink_rl:thesslink/ThessLink-v2"
   time_limit: 150
   pretrained_wrapper: null
 

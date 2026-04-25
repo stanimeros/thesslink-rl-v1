@@ -68,7 +68,7 @@ def available_env_catalog() -> list[dict]:
         key = _parse_env_key(path)
         if not key:
             continue
-        marker = key.split("/")[-1]  # GridNegotiation-vX...
+        marker = key.split("/")[-1]  # ThessLink-vX… (Gym env id tail)
         alias = _alias_from_env_config(env_config)
         m = re.search(r"-v(\d+)", marker)
         base_version = int(m.group(1)) if m else 0
@@ -108,3 +108,16 @@ def prompt_help() -> str:
     if not catalog:
         return "(none)"
     return ", ".join(f"{e['index']}:{e['alias']}" for e in catalog)
+
+
+def sacred_path_variants(marker: str) -> tuple[str, ...]:
+    """Substrings to find ``metrics.json`` under Sacred (``ThessLink-*`` vs legacy ``GridNegotiation-*``)."""
+    m = (marker or "").strip()
+    if not m:
+        return ()
+    out: list[str] = [m]
+    if m.startswith("ThessLink-"):
+        out.append("GridNegotiation-" + m[len("ThessLink-"):])
+    elif m.startswith("GridNegotiation-"):
+        out.append("ThessLink-" + m[len("GridNegotiation-"):])
+    return tuple(dict.fromkeys(out))

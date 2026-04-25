@@ -1,7 +1,7 @@
 env: "gymma"
 
 env_args:
-  key: "thesslink_rl:thesslink/GridNegotiation-v4-neg-g32"
+  key: "thesslink_rl:thesslink/ThessLink-v4-neg-g32"
   time_limit: 480
   pretrained_wrapper: null
   grid_size: 32

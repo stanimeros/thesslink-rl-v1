@@ -1,18 +1,54 @@
 diff --git a/src/utils/logging.py b/src/utils/logging.py
-index 46126ff..7573ef3 100644
+index 46126ff..148191c 100644
 --- a/src/utils/logging.py
 +++ b/src/utils/logging.py
-@@ -59,9 +59,17 @@ class Logger:
+@@ -6,6 +6,21 @@ import logging
+ import numpy as np
  
-         group_name = "_".join([alg_name, env_name, self.config_hash])
  
-+        # Display name in the W&B UI (otherwise W&B picks an opaque adjective-noun id).
-+        run_name = "_".join(
-+            [alg_name, env_name, f"seed{config['seed']}", self.config_hash[-8:]]
-+        )
-+        if len(run_name) > 120:
-+            run_name = run_name[:120]
++def _wandb_env_tag(config):
++    """Short label for W&B run/group names (avoids full gym registration keys)."""
++    ea = config.get("env_args") or {}
++    if "map_name" in ea:
++        return str(ea["map_name"])
++    key = ea.get("key")
++    if isinstance(key, str):
++        tail = key.rsplit("/", 1)[-1] if "/" in key else key.rsplit(":", 1)[-1]
++        for prefix in ("ThessLink-", "GridNegotiation-"):
++            if tail.startswith(prefix):
++                return tail[len(prefix):]
++        return tail.replace(":", "_")[:48]
++    return str(config.get("env", "env"))
 +
++
+ class Logger:
+     def __init__(self, console_logger):
+         self.console_logger = console_logger
+@@ -43,11 +58,7 @@ class Logger:
+         self.use_wandb = True
+ 
+         alg_name = config["name"]
+-        env_name = config["env"]
+-        if "map_name" in config["env_args"]:
+-            env_name += "_" + config["env_args"]["map_name"]
+-        elif "key" in config["env_args"]:
+-            env_name += "_" + config["env_args"]["key"]
++        env_tag = _wandb_env_tag(config)
+ 
+         non_hash_keys = ["seed"]
+         self.config_hash = sha256(
+@@ -57,11 +68,17 @@ class Logger:
+             ).encode("utf8")
+         ).hexdigest()[-10:]
+ 
+-        group_name = "_".join([alg_name, env_name, self.config_hash])
++        # Group by algo + short env + config fingerprint (full config in run config panel).
++        group_name = "_".join([alg_name, env_tag, self.config_hash])
++        # Run name: algo, short env, seed (hash stays in group for same-name disambiguation).
++        run_name = f"{alg_name}_{env_tag}_{config['seed']}"
++        if len(run_name) > 80:
++            run_name = run_name[:80]
+ 
          self.wandb = wandb.init(
              entity=team_name,
              project=project_name,
@@ -20,4 +56,3 @@ index 46126ff..7573ef3 100644
              config=config,
              group=group_name,
              mode=mode,
-         )

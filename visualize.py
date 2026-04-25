@@ -65,16 +65,18 @@ def discover_runs(results_dir: Path) -> dict[str, dict]:
     """Find Sacred runs matching the active ENV_VERSION and parse their metrics.
 
     Sacred results live under:
-      sacred/<algo>/thesslink_rl:thesslink/GridNegotiation-v<N>/<run_id>/metrics.json
+      sacred/<algo>/thesslink_rl:thesslink/ThessLink-v<N>/<run_id>/metrics.json
 
-    Only runs whose path contains ``GridNegotiation-v{ENV_VERSION}`` are returned.
+    Only runs whose path matches the current env Sacred marker (``ThessLink-v…``,
+    or legacy ``GridNegotiation-v…`` paths) are returned.
 
     Checks repo ``results/`` first, then ``epymarl/results/`` (EPyMARL default if
     ``local_results_path`` was not set to repo root).
     """
     from config import ENV_SACRED_MARKER
+    from thesslink_rl.env_catalog import sacred_path_variants
 
-    version_marker = ENV_SACRED_MARKER
+    version_markers = sacred_path_variants(ENV_SACRED_MARKER)
     bases = (results_dir, EPYMARL_DIR / "results")
     if not any((b / "sacred").is_dir() for b in bases):
         print(
@@ -92,8 +94,9 @@ def discover_runs(results_dir: Path) -> dict[str, dict]:
             if not alg_dir.is_dir() or alg_dir.name in runs:
                 continue
             metrics_files = [
-                f for f in alg_dir.rglob("metrics.json")
-                if version_marker in str(f)
+                f
+                for f in alg_dir.rglob("metrics.json")
+                if any(vm in str(f) for vm in version_markers)
             ]
             if not metrics_files:
                 continue

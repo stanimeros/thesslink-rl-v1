@@ -3,70 +3,70 @@
 from gymnasium.envs.registration import register
 
 register(
-    id="thesslink/GridNegotiation-v0",
+    id="thesslink/ThessLink-v0",
     entry_point="thesslink_rl.v0.gym_wrapper:GridNegotiationGymEnv",
 )
 
 register(
-    id="thesslink/GridNegotiation-v1",
+    id="thesslink/ThessLink-v1",
     entry_point="thesslink_rl.v1.gym_wrapper:GridNegotiationGymEnv",
 )
 
 register(
-    id="thesslink/GridNegotiation-v2",
+    id="thesslink/ThessLink-v2",
     entry_point="thesslink_rl.v2.gym_wrapper:GridNegotiationGymEnv",
 )
 
 register(
-    id="thesslink/GridNegotiation-v3-neg",
+    id="thesslink/ThessLink-v3-neg",
     entry_point="thesslink_rl.v3_neg.gym_wrapper:GridNegotiationGymEnv",
 )
 
 register(
-    id="thesslink/GridNegotiation-v3-nav",
+    id="thesslink/ThessLink-v3-nav",
     entry_point="thesslink_rl.v3_nav.gym_wrapper:GridNegotiationGymEnv",
 )
 
 register(
-    id="thesslink/GridNegotiation-v4-neg",
+    id="thesslink/ThessLink-v4-neg",
     entry_point="thesslink_rl.v4_neg.gym_wrapper:GridNegotiationGymEnv",
 )
 
 register(
-    id="thesslink/GridNegotiation-v4-nav",
+    id="thesslink/ThessLink-v4-nav",
     entry_point="thesslink_rl.v4_nav.gym_wrapper:GridNegotiationGymEnv",
 )
 
 # 32×32 grid variants
 register(
-    id="thesslink/GridNegotiation-v2-g32",
+    id="thesslink/ThessLink-v2-g32",
     entry_point="thesslink_rl.v2.gym_wrapper:GridNegotiationGymEnv",
     kwargs={"grid_size": 32},
 )
 register(
-    id="thesslink/GridNegotiation-v4-neg-g32",
+    id="thesslink/ThessLink-v4-neg-g32",
     entry_point="thesslink_rl.v4_neg.gym_wrapper:GridNegotiationGymEnv",
     kwargs={"grid_size": 32},
 )
 register(
-    id="thesslink/GridNegotiation-v4-nav-g32",
+    id="thesslink/ThessLink-v4-nav-g32",
     entry_point="thesslink_rl.v4_nav.gym_wrapper:GridNegotiationGymEnv",
     kwargs={"grid_size": 32},
 )
 
 # 64×64 grid variants
 register(
-    id="thesslink/GridNegotiation-v2-g64",
+    id="thesslink/ThessLink-v2-g64",
     entry_point="thesslink_rl.v2.gym_wrapper:GridNegotiationGymEnv",
     kwargs={"grid_size": 64},
 )
 register(
-    id="thesslink/GridNegotiation-v4-neg-g64",
+    id="thesslink/ThessLink-v4-neg-g64",
     entry_point="thesslink_rl.v4_neg.gym_wrapper:GridNegotiationGymEnv",
     kwargs={"grid_size": 64},
 )
 register(
-    id="thesslink/GridNegotiation-v4-nav-g64",
+    id="thesslink/ThessLink-v4-nav-g64",
     entry_point="thesslink_rl.v4_nav.gym_wrapper:GridNegotiationGymEnv",
     kwargs={"grid_size": 64},
 )
