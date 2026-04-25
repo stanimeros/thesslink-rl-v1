@@ -1,0 +1,23 @@
+diff --git a/src/utils/logging.py b/src/utils/logging.py
+index 46126ff..7573ef3 100644
+--- a/src/utils/logging.py
++++ b/src/utils/logging.py
+@@ -59,9 +59,17 @@ class Logger:
+ 
+         group_name = "_".join([alg_name, env_name, self.config_hash])
+ 
++        # Display name in the W&B UI (otherwise W&B picks an opaque adjective-noun id).
++        run_name = "_".join(
++            [alg_name, env_name, f"seed{config['seed']}", self.config_hash[-8:]]
++        )
++        if len(run_name) > 120:
++            run_name = run_name[:120]
++
+         self.wandb = wandb.init(
+             entity=team_name,
+             project=project_name,
++            name=run_name,
+             config=config,
+             group=group_name,
+             mode=mode,
+         )
