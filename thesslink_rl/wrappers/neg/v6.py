@@ -181,6 +181,8 @@ class GridNegotiationGymEnv(gym.Env):
         agreed_optimal = done and (self._agreed_poi == self._optimal_poi)
         info: dict[str, Any] = {
             "battle_won": float(done),
+            "battle_won_negotiation": float(done),
+            "episode_length_negotiation": float(self._negotiation_length),
             "negotiation_agreed": float(done),
             "negotiation_optimal": float(agreed_optimal),
             "agreement_quality": self._agreement_quality,
