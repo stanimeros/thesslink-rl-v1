@@ -22,6 +22,7 @@ from ...environments.v1 import (
 )
 from ...evaluation import (
     AgentConfig,
+    bfs_distances,
     compute_poi_scores,
     negotiation_quality,
     optimal_poi,
@@ -76,6 +77,12 @@ class GridNegotiationGymEnv(gym.Env):
         self._poi_scores: Dict[str, np.ndarray] = {}
         self._agreed_poi: int | None = None
         self._optimal_poi: int = 0
+        self._agreement_quality: float = 0.0
+        self._negotiation_length: int = 0
+        self._initial_dist: Dict[str, float] = {}
+        self._nav_steps: int = 0
+        self._individual_arrived: Dict[str, bool] = {}
+        self._first_arrival_step: int = 0
 
     def reset(
         self, seed: int | None = None, options: dict | None = None
@@ -96,6 +103,12 @@ class GridNegotiationGymEnv(gym.Env):
 
         self._agreed_poi = None
         self._optimal_poi = optimal_poi(self._poi_scores, agents)
+        self._agreement_quality = 0.0
+        self._negotiation_length = 0
+        self._initial_dist = {}
+        self._nav_steps = 0
+        self._individual_arrived = {a: False for a in agents}
+        self._first_arrival_step = 0
 
         obs_tuple = tuple(
             self._env._get_obs(a) for a in agents
@@ -113,7 +126,13 @@ class GridNegotiationGymEnv(gym.Env):
         agents = self._env.possible_agents
         actions_dict = {agents[i]: int(actions[i]) for i in range(self.n_agents)}
 
+        prev_phase = self._env.phase
+        prev_neg_turn = self._env.neg_turn
+
         obs_d, rewards_d, terminated_d, truncated_d, infos_d = self._env.step(actions_dict)
+
+        if prev_phase == "negotiation" and prev_neg_turn is not None:
+            self._negotiation_length += 1
 
         obs_tuple = tuple(obs_d[a] for a in agents)
         rewards = [rewards_d[a] for a in agents]
@@ -126,9 +145,25 @@ class GridNegotiationGymEnv(gym.Env):
             quality = negotiation_quality(
                 self._agreed_poi, self._poi_scores, agents,
             )
+            self._agreement_quality = quality
             rewards = [quality * 5.0] * self.n_agents
+            target = self._env.poi_positions[self._agreed_poi]
+            target_bfs = bfs_distances(target, self._env.obstacle_map)
+            max_d = float(self._env.obstacle_map.size)
+            for a in agents:
+                pos = tuple(self._env.agent_positions[a])
+                d = target_bfs[pos[0], pos[1]]
+                self._initial_dist[a] = float(d) if np.isfinite(d) else max_d
+                self._individual_arrived[a] = False
 
         if self._agreed_poi is not None and not just_agreed:
+            self._nav_steps += 1
+            for i, a in enumerate(agents):
+                if self._env.agents_reached.get(a, False) and not self._individual_arrived.get(a, False):
+                    self._individual_arrived[a] = True
+                    if self._first_arrival_step == 0:
+                        self._first_arrival_step = self._nav_steps
+
             for i in range(self.n_agents):
                 rewards[i] -= 0.05
 
@@ -149,12 +184,26 @@ class GridNegotiationGymEnv(gym.Env):
         agreed_optimal = (
             negotiation_agreed and self._agreed_poi == self._optimal_poi
         )
+        mean_opt = (
+            sum(self._initial_dist[a] for a in agents) / self.n_agents
+            if self._initial_dist
+            else 0.0
+        )
+        nav_eff = (
+            min(1.0, mean_opt / self._nav_steps)
+            if (all_reached and self._nav_steps > 0)
+            else 0.0
+        )
 
         info: dict[str, Any] = {
-            "battle_won": all_reached,
-            "reached_poi": int(all_reached),
+            "battle_won": float(all_reached),
+            "reached_poi": float(all_reached),
             "negotiation_agreed": float(negotiation_agreed),
             "negotiation_optimal": float(agreed_optimal),
+            "agreement_quality": self._agreement_quality,
+            "negotiation_length": float(self._negotiation_length),
+            "nav_efficiency": nav_eff,
+            "first_arrival_step": float(self._first_arrival_step),
         }
 
         return obs_tuple, rewards, done, truncated, info

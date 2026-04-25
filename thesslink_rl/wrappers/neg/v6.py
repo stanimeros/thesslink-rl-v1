@@ -93,6 +93,7 @@ class GridNegotiationGymEnv(gym.Env):
         self._optimal_poi: int = 0
         self._gm_vec: np.ndarray = np.zeros(NUM_POIS, dtype=np.float64)
         self._agreement_quality: float = 0.0
+        self._negotiation_length: int = 0
 
     def reset(
         self, seed: int | None = None, options: dict | None = None
@@ -112,6 +113,7 @@ class GridNegotiationGymEnv(gym.Env):
         self._optimal_poi = optimal_poi(self._poi_scores, agents)
         self._gm_vec = golden_mean_vector(self._poi_scores, agents)
         self._agreement_quality = 0.0
+        self._negotiation_length = 0
         gm_best = float(self._gm_vec.max())
         self._gm_norm = self._gm_vec / gm_best if gm_best > 1e-12 else self._gm_vec.copy()
         obs_tuple = tuple(self._env._get_obs(a) for a in agents)
@@ -126,10 +128,13 @@ class GridNegotiationGymEnv(gym.Env):
     ) -> tuple[tuple[np.ndarray, ...], list[float], bool, bool, dict]:
         agents = self._env.possible_agents
         actions_dict = {agents[i]: int(actions[i]) for i in range(self.n_agents)}
+        prev_phase = self._env.phase
         prev_neg_turn = self._env.neg_turn
         prev_suggestions = dict(self._env.last_suggestion)
 
         obs_d, _, _, truncated_d, _ = self._env.step(actions_dict)
+        if prev_phase == "negotiation" and prev_neg_turn is not None:
+            self._negotiation_length += 1
         obs_tuple = tuple(obs_d[a] for a in agents)
         rewards = [0.0] * self.n_agents
 
@@ -179,6 +184,7 @@ class GridNegotiationGymEnv(gym.Env):
             "negotiation_agreed": float(done),
             "negotiation_optimal": float(agreed_optimal),
             "agreement_quality": self._agreement_quality,
+            "negotiation_length": float(self._negotiation_length),
         }
         return obs_tuple, rewards, done, truncated, info
 
