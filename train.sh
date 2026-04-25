@@ -18,6 +18,9 @@
 # Weights & Biases (metrics only; checkpoints stay local under results/models):
 #   Always on (entity aid26006-university-of-macedonia, project thesslink-rl). Override with
 #   WANDB_ENTITY / WANDB_PROJECT / WANDB_MODE in the environment.
+#   Optional: THESSLINK_WANDB_GROUP=custom_name  overrides W&B ``group`` (default is algo_env).
+#   Runner/learner log intervals default 20k env steps (see epymarl_config/envs) so W&B
+#   is not flooded every 2k steps; raise further if charts are still too dense.
 #
 # Reproducibility: Sacred ``seed`` (numpy, torch, env) defaults to THESSLINK_SEED or 42.
 #
@@ -414,6 +417,8 @@ for alg in "${ALGOS[@]}"; do
         "seed=${SEED}" \
         save_model=True \
         log_interval=20000 \
+        runner_log_interval=20000 \
+        learner_log_interval=20000 \
         test_interval=50000 \
         save_model_interval=400000 \
         t_max=2000000 \

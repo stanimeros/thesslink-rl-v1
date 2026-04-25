@@ -10,5 +10,5 @@ common_reward: true
 
 test_greedy: True
 test_nepisode: 32
-runner_log_interval: 2000
-learner_log_interval: 2000
+runner_log_interval: 20000
+learner_log_interval: 20000

@@ -110,11 +110,15 @@ def run_training(algo: str) -> Path:
         f"save_model=True",
         f"save_model_interval={SAVE_MODEL_INTERVAL}",
         f"test_nepisode=8",
+        "use_wandb=False",
         epymarl_common_reward_cli_flag(algo, ENV_CONFIG),
     ]
     print(f"\n{'='*60}")
     print(f"STEP 1 — Smoke training: {algo.upper()}")
-    print(f"  t_max={T_MAX}  test_interval={TEST_INTERVAL}  log_interval={LOG_INTERVAL}")
+    print(
+        f"  t_max={T_MAX}  test_interval={TEST_INTERVAL}  log_interval={LOG_INTERVAL}  "
+        "use_wandb=False (smoke does not log to W&B)"
+    )
     print(f"  {epymarl_common_reward_cli_flag(algo, ENV_CONFIG)}")
     print(f"  cmd: {' '.join(cmd[cmd.index('with'):])}")
     print(f"{'='*60}\n")
@@ -122,9 +126,9 @@ def run_training(algo: str) -> Path:
     # Match ``train.sh`` (repo root cwd). EPyMARL defaults ``local_results_path`` to
     # ``epymarl/results`` relative to cwd; running from ``epymarl/src`` breaks repo-root
     # ``results/sacred`` layout if the CLI override is not applied.
+    smoke_env = {**os.environ, "WANDB_DISABLED": "true"}
     proc = subprocess.run(
-        cmd, cwd=str(PROJECT_ROOT),
-        capture_output=False,
+        cmd, cwd=str(PROJECT_ROOT), env=smoke_env, capture_output=False,
     )
     if proc.returncode != 0:
         print(f"{algo} training failed with exit code {proc.returncode}")
