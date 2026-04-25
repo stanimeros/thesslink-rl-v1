@@ -68,10 +68,12 @@ def available_env_catalog() -> list[dict]:
         key = _parse_env_key(path)
         if not key:
             continue
-        marker = key.split("/")[-1]  # ThessLink-vX… (Gym env id tail)
+        marker = key.split("/")[-1]  # ThessLink-eX-… or ThessLink-vX… (Gym env id tail)
         alias = _alias_from_env_config(env_config)
         m = re.search(r"-v(\d+)", marker)
         base_version = int(m.group(1)) if m else 0
+        em = re.search(r"-e(\d+)-", marker)
+        env_version = int(em.group(1)) if em else base_version
         grid_size = _parse_env_grid_size(path)
         entries.append(
             {
@@ -79,6 +81,7 @@ def available_env_catalog() -> list[dict]:
                 "alias": alias,
                 "marker": marker,
                 "base_version": base_version,
+                "env_version": env_version,
                 "grid_size": grid_size,
                 "yaml_path": str(path),
             }

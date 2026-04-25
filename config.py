@@ -22,15 +22,16 @@ ENV_INDEX = _choice["index"]
 ENV_SACRED_MARKER = _choice["marker"]
 _BASE_VERSION = _choice["base_version"]
 ENV_VERSION = _BASE_VERSION
+_ENV_VERSION = _choice.get("env_version", _BASE_VERSION)
 
-if _BASE_VERSION == 2:
-    from thesslink_rl.v2 import GridNegotiationEnv
-elif _BASE_VERSION == 1:
-    from thesslink_rl.v1 import GridNegotiationEnv
-elif _BASE_VERSION >= 3:
-    from thesslink_rl.v3 import GridNegotiationEnv
+if _ENV_VERSION == 0:
+    from thesslink_rl.environments.v0 import GridNegotiationEnv
+elif _ENV_VERSION == 1:
+    from thesslink_rl.environments.v1 import GridNegotiationEnv
+elif _ENV_VERSION == 2:
+    from thesslink_rl.environments.v2 import GridNegotiationEnv
 else:
-    from thesslink_rl.v0 import GridNegotiationEnv
+    from thesslink_rl.environments.v3 import GridNegotiationEnv
 
 ENV_CONFIG = ENV_SELECTOR
 ENV_TAG = ENV_LABEL if re.fullmatch(r"v\d+_.+", ENV_LABEL) else f"v{_BASE_VERSION}"
