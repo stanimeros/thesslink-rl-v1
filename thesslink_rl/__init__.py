@@ -53,6 +53,21 @@ register(
     entry_point="thesslink_rl.v4_nav.gym_wrapper:GridNegotiationGymEnv",
     kwargs={"grid_size": 32},
 )
+register(
+    id="thesslink/ThessLink-v5-g32",
+    entry_point="thesslink_rl.v5.gym_wrapper:GridNegotiationGymEnv",
+    kwargs={"grid_size": 32},
+)
+register(
+    id="thesslink/ThessLink-v6-neg-g32",
+    entry_point="thesslink_rl.v6_neg.gym_wrapper:GridNegotiationGymEnv",
+    kwargs={"grid_size": 32},
+)
+register(
+    id="thesslink/ThessLink-v6-nav-g32",
+    entry_point="thesslink_rl.v6_nav.gym_wrapper:GridNegotiationGymEnv",
+    kwargs={"grid_size": 32},
+)
 
 # 64×64 grid variants
 register(

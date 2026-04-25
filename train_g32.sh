@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# v2_g32 (full) then v4_neg_g32 + v4_nav_g32 (--quick) in parallel; each train.sh under nohup.
+# v5_g32 (full two-phase) then v6_neg_g32 + v6_nav_g32 (--quick) in parallel.
 #
 # Optional first argument only:
 #   ./train_g32.sh --detach   # re-exec under nohup and exit (whole pipeline in background)
@@ -26,16 +26,16 @@ if [[ $# -gt 0 ]]; then
 fi
 
 echo "[train_g32] Logs: $LOG_DIR"
-echo "[train_g32] Starting v2_g32 under nohup → v2_g32.out"
-nohup "$SCRIPT_DIR/train.sh" --env v2_g32 >"$LOG_DIR/v2_g32.out" 2>&1 &
-v2_pid=$!
-wait "$v2_pid"
+echo "[train_g32] Starting v5_g32 under nohup → v5_g32.out"
+nohup "$SCRIPT_DIR/train.sh" --env v5_g32 >"$LOG_DIR/v5_g32.out" 2>&1 &
+v5_pid=$!
+wait "$v5_pid"
 
-echo "[train_g32] v2_g32 finished. Launching v4_neg_g32 and v4_nav_g32 (--quick) in parallel under nohup..."
-nohup "$SCRIPT_DIR/train.sh" --env v4_neg_g32 --quick >"$LOG_DIR/v4_neg_g32_quick.out" 2>&1 &
+echo "[train_g32] v5_g32 finished. Launching v6_neg_g32 and v6_nav_g32 (--quick) in parallel under nohup..."
+nohup "$SCRIPT_DIR/train.sh" --env v6_neg_g32 --quick >"$LOG_DIR/v6_neg_g32_quick.out" 2>&1 &
 neg_pid=$!
-nohup "$SCRIPT_DIR/train.sh" --env v4_nav_g32 --quick >"$LOG_DIR/v4_nav_g32_quick.out" 2>&1 &
+nohup "$SCRIPT_DIR/train.sh" --env v6_nav_g32 --quick >"$LOG_DIR/v6_nav_g32_quick.out" 2>&1 &
 nav_pid=$!
-echo "[train_g32] PIDs: v4_neg_g32=$neg_pid v4_nav_g32=$nav_pid"
-echo "[train_g32] v4 jobs are under nohup — safe to disconnect; logs: $LOG_DIR/v4_neg_g32_quick.out  $LOG_DIR/v4_nav_g32_quick.out"
+echo "[train_g32] PIDs: v6_neg_g32=$neg_pid v6_nav_g32=$nav_pid"
+echo "[train_g32] v6 jobs are under nohup — safe to disconnect; logs: $LOG_DIR/v6_neg_g32_quick.out  $LOG_DIR/v6_nav_g32_quick.out"
 echo "[train_g32] Monitor: ./train.sh --status"

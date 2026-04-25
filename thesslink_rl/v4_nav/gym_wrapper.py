@@ -169,8 +169,6 @@ class GridNegotiationGymEnv(gym.Env):
         info: dict[str, Any] = {
             "battle_won": float(all_reached),
             "reached_poi": float(all_reached),
-            "negotiation_agreed": 1.0,
-            "negotiation_optimal": float(agreed_optimal),
         }
         return obs_tuple, rewards, done, truncated, info
 

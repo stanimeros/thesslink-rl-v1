@@ -112,8 +112,24 @@ prepare_results_tree() {
 
 _status_table_for_logs_dir() {
     local log_root="$1"
-    echo " ALG  |   T_ENV |   RETURN |   AGR% |    GM% | REACH% | EP_LEN"
-    echo "------|---------|----------|--------|--------|--------|-------"
+    local dirname
+    dirname="$(basename "$log_root")"
+    # Detect phase type from directory name: *_neg* = negotiation-only, *_nav* = navigation-only
+    local is_neg=false is_nav=false
+    [[ "$dirname" == *_neg* ]] && is_neg=true
+    [[ "$dirname" == *_nav* ]] && is_nav=true
+
+    if [[ "$is_nav" == true ]]; then
+        echo " ALG  |   T_ENV |   RETURN | REACH% | EP_LEN"
+        echo "------|---------|----------|--------|-------"
+    elif [[ "$is_neg" == true ]]; then
+        echo " ALG  |   T_ENV |   RETURN |   AGR% |    GM% | EP_LEN"
+        echo "------|---------|----------|--------|--------|-------"
+    else
+        echo " ALG  |   T_ENV |   RETURN |   AGR% |    GM% | REACH% | EP_LEN"
+        echo "------|---------|----------|--------|--------|--------|-------"
+    fi
+
     for alg in "${ALL_ALGOS[@]}"; do
         local logf="$log_root/${alg}.log"
         [ -f "$logf" ] || continue
@@ -138,8 +154,16 @@ _status_table_for_logs_dir() {
         n_perc=$(echo "${neg:-0} * 100" | bc -l 2>/dev/null || echo "0")
         no_perc=$(echo "${neg_opt:-0} * 100" | bc -l 2>/dev/null || echo "0")
         r_perc=$(echo "${reach:-0} * 100" | bc -l 2>/dev/null || echo "0")
-        printf " %5s | %7s | %8.4f | %5.1f%% | %5.1f%% | %5.1f%% | %5.1f\n" \
-            "$n" "${tenv:-0}" "${ret:-0}" "${n_perc:-0}" "${no_perc:-0}" "${r_perc:-0}" "${eplen:-0}"
+        if [[ "$is_nav" == true ]]; then
+            printf " %5s | %7s | %8.4f | %5.1f%% | %5.1f\n" \
+                "$n" "${tenv:-0}" "${ret:-0}" "${r_perc:-0}" "${eplen:-0}"
+        elif [[ "$is_neg" == true ]]; then
+            printf " %5s | %7s | %8.4f | %5.1f%% | %5.1f%% | %5.1f\n" \
+                "$n" "${tenv:-0}" "${ret:-0}" "${n_perc:-0}" "${no_perc:-0}" "${eplen:-0}"
+        else
+            printf " %5s | %7s | %8.4f | %5.1f%% | %5.1f%% | %5.1f%% | %5.1f\n" \
+                "$n" "${tenv:-0}" "${ret:-0}" "${n_perc:-0}" "${no_perc:-0}" "${r_perc:-0}" "${eplen:-0}"
+        fi
     done
 }
 

@@ -1,10 +1,10 @@
 env: "gymma"
 
 env_args:
-  key: "thesslink_rl:thesslink/ThessLink-v4-nav-g64"
-  time_limit: 960
+  key: "thesslink_rl:thesslink/ThessLink-v6-nav-g32"
+  time_limit: 480
   pretrained_wrapper: null
-  grid_size: 64
+  grid_size: 32
 
 common_reward: false
 

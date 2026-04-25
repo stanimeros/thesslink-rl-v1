@@ -1,12 +1,12 @@
 env: "gymma"
 
 env_args:
-  key: "thesslink_rl:thesslink/ThessLink-v4-neg-g64"
-  time_limit: 960
+  key: "thesslink_rl:thesslink/ThessLink-v5-g32"
+  time_limit: 480
   pretrained_wrapper: null
-  grid_size: 64
+  grid_size: 32
 
-common_reward: true
+common_reward: false
 
 test_greedy: True
 test_nepisode: 32
