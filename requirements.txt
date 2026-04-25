@@ -4,3 +4,4 @@ gymnasium>=0.29.0
 matplotlib>=3.7.0
 pyyaml>=6.0
 sacred>=0.8.4
+wandb>=0.16.0
