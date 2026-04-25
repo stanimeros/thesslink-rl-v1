@@ -20,7 +20,7 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .constants import GRID_SIZE, NUM_POIS, PLOTS_DIR
+from .constants import NUM_POIS, PLOTS_DIR
 
 ACT_SUGGEST_BASE = 5
 NUM_SUGGEST_ACTIONS = NUM_POIS
@@ -117,19 +117,20 @@ def render_grid(
     if standalone:
         fig, ax = plt.subplots(1, 1, figsize=(6, 6))
 
+    gs = env.obstacle_map.shape[0]
     colors = _poi_colors(poi_scores)
 
-    grid_rgb = np.full((GRID_SIZE, GRID_SIZE, 3), mcolors.to_rgb(COLORS["empty"]))
+    grid_rgb = np.full((gs, gs, 3), mcolors.to_rgb(COLORS["empty"]))
 
-    for r in range(GRID_SIZE):
-        for c in range(GRID_SIZE):
+    for r in range(gs):
+        for c in range(gs):
             if env.obstacle_map[r, c]:
                 grid_rgb[r, c] = mcolors.to_rgb(COLORS["obstacle"])
 
     for i, (pr, pc) in enumerate(env.poi_positions):
         grid_rgb[pr, pc] = mcolors.to_rgb(colors[i])
 
-    ax.imshow(grid_rgb, origin="upper", extent=(0, GRID_SIZE, GRID_SIZE, 0))
+    ax.imshow(grid_rgb, origin="upper", extent=(0, gs, gs, 0))
 
     for i, (pr, pc) in enumerate(env.poi_positions):
         marker = "^" if env.agreed_poi == i else "D"
@@ -160,13 +161,13 @@ def render_grid(
                 ha="center", va="center",
                 fontsize=9, fontweight="bold", color="white", zorder=6)
 
-    ax.set_xticks(range(GRID_SIZE + 1))
-    ax.set_yticks(range(GRID_SIZE + 1))
+    ax.set_xticks(range(gs + 1))
+    ax.set_yticks(range(gs + 1))
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     ax.grid(True, color="#cccccc", linewidth=0.5)
-    ax.set_xlim(0, GRID_SIZE)
-    ax.set_ylim(GRID_SIZE, 0)
+    ax.set_xlim(0, gs)
+    ax.set_ylim(gs, 0)
 
     phase_tag = f"  [{env.phase}]" if hasattr(env, "phase") else ""
     neg_info = ""
@@ -206,17 +207,18 @@ def _draw_heatmap_panel(
     subtitle: str | None = None,
 ):
     """Draw a single heatmap panel with POI scores, obstacles, and agent marker."""
+    gs = env.obstacle_map.shape[0]
     colors = _poi_colors(poi_scores)
     heatmap_masked = np.ma.array(heatmap, mask=env.obstacle_map)
 
     ax.imshow(
         heatmap_masked, cmap="RdYlGn", vmin=0, vmax=1,
-        origin="upper", extent=(0, GRID_SIZE, GRID_SIZE, 0),
+        origin="upper", extent=(0, gs, gs, 0),
         interpolation="nearest",
     )
 
-    for r in range(GRID_SIZE):
-        for c in range(GRID_SIZE):
+    for r in range(gs):
+        for c in range(gs):
             if env.obstacle_map[r, c]:
                 ax.add_patch(plt.Rectangle(
                     (c, r), 1, 1,
@@ -250,13 +252,13 @@ def _draw_heatmap_panel(
             ha="center", va="center",
             fontsize=9, fontweight="bold", color="white", zorder=8)
 
-    ax.set_xticks(range(GRID_SIZE + 1))
-    ax.set_yticks(range(GRID_SIZE + 1))
+    ax.set_xticks(range(gs + 1))
+    ax.set_yticks(range(gs + 1))
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     ax.grid(True, color="#cccccc", linewidth=0.5)
-    ax.set_xlim(0, GRID_SIZE)
-    ax.set_ylim(GRID_SIZE, 0)
+    ax.set_xlim(0, gs)
+    ax.set_ylim(gs, 0)
     ax.set_title(subtitle or f"{cfg.name} eval", fontsize=10)
 
 
