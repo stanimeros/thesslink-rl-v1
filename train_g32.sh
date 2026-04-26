@@ -1,45 +1,129 @@
 #!/usr/bin/env bash
-# Train v7 neg + v7 nav in parallel on g32.
+# ThessLink RL — v7 g32 training launcher.
+# Runs: setup → smoke test (neg + nav) → clear → launch all algos in parallel.
 #
-# Kills any running training processes, wipes previous results for these two
-# env labels, then launches e3_neg_v7_g32 and e3_nav_v7_g32 side-by-side.
+# Usage:
+#   ./train_g32.sh            # run in foreground
+#   ./train_g32.sh --detach   # re-exec under nohup and exit
 #
-# Optional first argument only:
-#   ./train_g32.sh --detach   # re-exec under nohup and exit (whole pipeline in background)
-#
-# W&B defaults / overrides: see train.sh (WANDB_* env vars). No other flags here.
+# W&B overrides: WANDB_ENTITY / WANDB_PROJECT / WANDB_MODE
+# Seed override: THESSLINK_SEED (default 42)
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_script="${BASH_SOURCE[0]:-$0}"
+if [[ -L "$_script" ]] && command -v readlink >/dev/null; then
+    if _r="$(readlink -f "$_script" 2>/dev/null)"; then _script="$_r"; fi
+fi
+SCRIPT_DIR="$(cd "$(dirname "$_script")" && pwd)"
+cd "$SCRIPT_DIR"
+
 LOG_DIR="$SCRIPT_DIR/logs/train_g32"
 mkdir -p "$LOG_DIR"
 
 if [[ "${1:-}" == "--detach" ]]; then
-  shift
-  launcher="$LOG_DIR/launcher_$(date +%Y%m%d_%H%M%S).out"
-  echo "[train_g32] Detaching → $launcher"
-  nohup bash "$SCRIPT_DIR/train_g32.sh" "$@" >>"$launcher" 2>&1 &
-  echo "[train_g32] Started pid=$! — safe to close this terminal. tail -f $launcher"
-  exit 0
+    shift
+    launcher="$LOG_DIR/launcher_$(date +%Y%m%d_%H%M%S).out"
+    echo "[train_g32] Detaching → $launcher"
+    nohup bash "$SCRIPT_DIR/train_g32.sh" "$@" >>"$launcher" 2>&1 &
+    echo "[train_g32] Started pid=$! — safe to close this terminal. tail -f $launcher"
+    exit 0
 fi
 
 if [[ $# -gt 0 ]]; then
-  echo "[train_g32] unknown argument: $1 (only --detach is accepted)" >&2
-  exit 1
+    echo "[train_g32] unknown argument: $1 (only --detach is accepted)" >&2
+    exit 1
 fi
 
-# ── Kill + clean ─────────────────────────────────────────────────────────────
-echo "[train_g32] Killing any running training processes..."
-"$SCRIPT_DIR/train.sh" --kill || true
+RESULTS_DIR_ABS="$SCRIPT_DIR/epymarl/results"
+LOGS_ROOT="$RESULTS_DIR_ABS/logs"
+EPYMARL_SRC="epymarl/src"
+VENV=".venv/bin/activate"
 
-# ── Launch v7 neg + v7 nav in parallel (--quick wipes only their own outputs) ─
-echo "[train_g32] Launching e3_neg_v7_g32 and e3_nav_v7_g32 in parallel..."
-nohup "$SCRIPT_DIR/train.sh" --env thesslink_e3_neg_v7_g32 --quick >"$LOG_DIR/e3_neg_v7_g32.out" 2>&1 &
-neg7_pid=$!
-nohup "$SCRIPT_DIR/train.sh" --env thesslink_e3_nav_v7_g32 --quick >"$LOG_DIR/e3_nav_v7_g32.out" 2>&1 &
-nav7_pid=$!
+NEG_ENV="thesslink_e3_neg_v7_g32"
+NAV_ENV="thesslink_e3_nav_v7_g32"
 
-echo "[train_g32] PIDs: e3_neg_v7_g32=$neg7_pid  e3_nav_v7_g32=$nav7_pid"
-echo "[train_g32] Logs:"
-echo "  $LOG_DIR/e3_neg_v7_g32.out"
-echo "  $LOG_DIR/e3_nav_v7_g32.out"
+WANDB_ENTITY_VAL="${WANDB_ENTITY:-aid26006-university-of-macedonia}"
+WANDB_PROJECT_VAL="${WANDB_PROJECT:-thesslink-rl}"
+WANDB_MODE_VAL="${WANDB_MODE:-online}"
+SEED="${THESSLINK_SEED:-42}"
+
+log()  { echo -e "\033[1;32m[train_g32]\033[0m $*"; }
+err()  { echo -e "\033[1;31m[train_g32]\033[0m $*" >&2; }
+
+source "$VENV"
+
+read -r -a ALL_ALGOS <<< "$(python3 -c "
+import importlib.util, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+spec = importlib.util.spec_from_file_location('_c', root / 'thesslink_rl' / 'constants.py')
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+print(' '.join(mod.TRAINING_ALGOS))
+" "$SCRIPT_DIR")"
+
+# ── Smoke test ───────────────────────────────────────────────────────────
+
+for env_cfg in "$NEG_ENV" "$NAV_ENV"; do
+    log "Smoke test: $env_cfg"
+    THESSLINK_ENV="$env_cfg" python smoke_test.py || { err "Smoke FAILED for $env_cfg — aborting."; exit 1; }
+done
+
+# ── Clear previous outputs ───────────────────────────────────────────────
+
+log "Clearing previous results..."
+"$SCRIPT_DIR/clear.sh"
+
+# ── Launch training ──────────────────────────────────────────────────────
+
+log "W&B: entity=${WANDB_ENTITY_VAL}  project=${WANDB_PROJECT_VAL}  mode=${WANDB_MODE_VAL}"
+log "Seed: ${SEED}  Algos: ${ALL_ALGOS[*]}"
+
+WANDB_WITH=(
+    use_wandb=True
+    "wandb_team=${WANDB_ENTITY_VAL}"
+    "wandb_project=${WANDB_PROJECT_VAL}"
+    "wandb_mode=${WANDB_MODE_VAL}"
+    wandb_save_model=False
+)
+
+common_reward_flag() {
+    local algo="$1" env_cfg="$2"
+    PYTHONPATH="$SCRIPT_DIR" python -c "
+from thesslink_rl.constants import epymarl_common_reward_cli_flag
+import sys
+print(epymarl_common_reward_cli_flag(sys.argv[1], sys.argv[2]))
+" "$algo" "$env_cfg"
+}
+
+PIDS=()
+for env_cfg in "$NEG_ENV" "$NAV_ENV"; do
+    mkdir -p "$LOGS_ROOT/${env_cfg}"
+    for alg in "${ALL_ALGOS[@]}"; do
+        logfile="$LOGS_ROOT/${env_cfg}/${alg}.log"
+        extra=$(common_reward_flag "$alg" "$env_cfg")
+        log "  Starting ${env_cfg}/${alg} → $logfile"
+        nohup python "$EPYMARL_SRC/main.py" \
+            --config="$alg" \
+            --env-config="$env_cfg" \
+            with \
+            local_results_path="$RESULTS_DIR_ABS" \
+            "seed=${SEED}" \
+            save_model=True \
+            log_interval=20000 \
+            runner_log_interval=20000 \
+            learner_log_interval=20000 \
+            test_interval=50000 \
+            save_model_interval=400000 \
+            t_max=2000000 \
+            $extra \
+            "${WANDB_WITH[@]}" \
+            > "$logfile" 2>&1 &
+        PIDS+=($!)
+    done
+done
+
+echo ""
+log "All ${#PIDS[@]} training jobs launched."
+log "Kill + clear: ./clear.sh"
+log "Neg logs:     $LOGS_ROOT/${NEG_ENV}/<algo>.log"
+log "Nav logs:     $LOGS_ROOT/${NAV_ENV}/<algo>.log"
