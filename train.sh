@@ -12,7 +12,6 @@
 #   ./train.sh --env v4_nav_g32 # v4-nav on a 32×32 grid
 #   ./train.sh # prompts for env selector (see env_catalog) if stdin is a TTY
 #   ./train.sh --quick --env v2  # skip git-reset + kill; scoped wipe (safe for concurrent runs)
-#   ./train.sh --status   # live dashboard (watch -n 2; Ctrl+C to stop)
 #   ./train.sh --kill     # kill all running training processes
 #
 # Weights & Biases (metrics only; checkpoints stay local under results/models):
@@ -113,109 +112,7 @@ prepare_results_tree() {
     mkdir -p "$RESULTS_DIR_ABS/sacred" "$RESULTS_DIR_ABS/models" "$LOGS_ROOT/${label}"
 }
 
-_status_table_for_logs_dir() {
-    local log_root="$1"
-    local dirname
-    dirname="$(basename "$log_root")"
-    # Detect phase type from directory name: *_neg* = negotiation-only, *_nav* = navigation-only
-    local is_neg=false is_nav=false
-    [[ "$dirname" == *_neg* ]] && is_neg=true
-    [[ "$dirname" == *_nav* ]] && is_nav=true
-
-    if [[ "$is_nav" == true ]]; then
-        echo " ALG  |   T_ENV |   RETURN | REACH% | EP_LEN"
-        echo "------|---------|----------|--------|-------"
-    elif [[ "$is_neg" == true ]]; then
-        echo " ALG  |   T_ENV |   RETURN |   AGR% |    GM% | EP_LEN"
-        echo "------|---------|----------|--------|--------|-------"
-    else
-        echo " ALG  |   T_ENV |   RETURN |   AGR% |    GM% | REACH% | EP_LEN"
-        echo "------|---------|----------|--------|--------|--------|-------"
-    fi
-
-    for alg in "${ALL_ALGOS[@]}"; do
-        local logf="$log_root/${alg}.log"
-        [ -f "$logf" ] || continue
-        local tenv ret neg neg_opt reach eplen n n_perc no_perc r_perc
-        tenv=$(grep -a 't_env:' "$logf" 2>/dev/null | tail -n1 | awk -F't_env: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        ret=$(grep -a 'test_total_return_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_total_return_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        if [ -z "$ret" ]; then
-            ret=$(grep -a 'test_return_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_return_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        fi
-        neg=$(grep -a 'test_negotiation_agreed_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_negotiation_agreed_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        neg_opt=$(grep -a 'test_negotiation_optimal_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_negotiation_optimal_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        reach=$(grep -a 'test_battle_won_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_battle_won_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        eplen=$(grep -a 'test_ep_length_mean:' "$logf" 2>/dev/null | tail -n1 | awk -F'test_ep_length_mean: ' '{print $2}' | awk '{print $1}' | tr -d ',')
-        case $alg in
-            iql)   n="IQL  ";;
-            qmix)  n="QMIX ";;
-            vdn)   n="VDN  ";;
-            mappo) n="MAPPO";;
-            coma)  n="COMA ";;
-            *)     n="$alg";;
-        esac
-        n_perc=$(echo "${neg:-0} * 100" | bc -l 2>/dev/null || echo "0")
-        no_perc=$(echo "${neg_opt:-0} * 100" | bc -l 2>/dev/null || echo "0")
-        r_perc=$(echo "${reach:-0} * 100" | bc -l 2>/dev/null || echo "0")
-        if [[ "$is_nav" == true ]]; then
-            printf " %5s | %7s | %8.4f | %5.1f%% | %5.1f\n" \
-                "$n" "${tenv:-0}" "${ret:-0}" "${r_perc:-0}" "${eplen:-0}"
-        elif [[ "$is_neg" == true ]]; then
-            printf " %5s | %7s | %8.4f | %5.1f%% | %5.1f%% | %5.1f\n" \
-                "$n" "${tenv:-0}" "${ret:-0}" "${n_perc:-0}" "${no_perc:-0}" "${eplen:-0}"
-        else
-            printf " %5s | %7s | %8.4f | %5.1f%% | %5.1f%% | %5.1f%% | %5.1f\n" \
-                "$n" "${tenv:-0}" "${ret:-0}" "${n_perc:-0}" "${no_perc:-0}" "${r_perc:-0}" "${eplen:-0}"
-        fi
-    done
-}
-
-show_status() {
-    # grep exits 1 when there is no match; with pipefail + set -e that aborts the script
-    # before any row is printed. Stats lines can be missing early in training.
-    set +o pipefail
-    export LC_NUMERIC=C
-    echo ""
-    local any_v=false
-    local vd
-    for vd in "$LOGS_ROOT"/*; do
-        [[ -d "$vd" ]] || continue
-        [[ -d "$vd" ]] || continue
-        any_v=true
-        echo "=== $(basename "$LOGS_ROOT")/$(basename "$vd") ==="
-        _status_table_for_logs_dir "$vd"
-        echo ""
-    done
-    local showed_legacy=false
-    if [[ "$any_v" == false ]] && [[ -d "$LOGS_ROOT" ]]; then
-        for alg in "${ALL_ALGOS[@]}"; do
-            if [[ -f "$LOGS_ROOT/${alg}.log" ]]; then
-                echo "=== logs/ (legacy flat layout) ==="
-                _status_table_for_logs_dir "$LOGS_ROOT"
-                echo ""
-                showed_legacy=true
-                break
-            fi
-        done
-    fi
-    if [[ "$any_v" == false ]] && [[ "$showed_legacy" == false ]]; then
-        echo "(No training logs under $LOGS_ROOT yet.)"
-        echo ""
-    fi
-    set -o pipefail
-}
-
 # ── Parse arguments ──────────────────────────────────────────────────────
-
-if [[ "${1:-}" == "--status" ]]; then
-    # Same as: watch -n 2 'echo header && for alg in ...; do ...; done' — logic lives in show_status.
-    exec watch -n 2 "$SCRIPT_DIR/train.sh" --status-once
-fi
-
-if [[ "${1:-}" == "--status-once" ]]; then
-    show_status
-    exit 0
-fi
 
 if [[ "${1:-}" == "--kill" ]]; then
     kill_training
@@ -368,7 +265,7 @@ done
 
 # ── Smoke test ───────────────────────────────────────────────────────────
 
-prepare_results_tree "before smoke — short runs for all algorithms + plots"
+prepare_results_tree "before smoke — short runs for all algorithms"
 log "Smoke will use --env-config=${ENV_CONFIG} (see epymarl/src/config/envs/${ENV_CONFIG}.yaml)"
 
 log "Running smoke test..."
@@ -436,6 +333,5 @@ for i in "${!ALGOS[@]}"; do
 done
 
 echo ""
-log "Monitor with:  ./train.sh --status"
 log "Kill all with: ./train.sh --kill"
 log "Tail a log:    tail -f $LOGS_ROOT/<${ENV_CHOICES}>/<algo>.log"

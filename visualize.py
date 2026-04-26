@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
-"""Visualize training results from Sacred metrics under ``results/`` (repo root).
+"""Generate episode replay GIFs from the best checkpoint under results/models.
 
-With **no** Sacred results for the chosen env: writes **3** placeholder files —
-``training_curves-example.png``, ``eval_heatmaps-example.png``,
-``episode_replay-example.gif``.
-
-With results: ``training_curves-all.png`` (all algorithms), **one** shared
-``eval_heatmaps.png``, per-algorithm training curves, and episode GIFs from the
-**best** checkpoint under ``results/models``.
+With no Sacred results: writes one example GIF from a random-policy episode.
+With results: one GIF per algorithm from its best checkpoint.
 
 Usage:
     python visualize.py --env v3_neg
@@ -22,9 +17,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
 from thesslink_rl.env_catalog import prompt_help, resolve_env_choice
 from thesslink_rl.checkpoints import (
@@ -41,38 +33,17 @@ from thesslink_rl.visualization import (
     _make_filename,
     capture_frame,
     describe_actions,
-    plot_training_curves,
     random_episode_frames,
     render_eval_heatmaps,
     replay_episode,
-    rolling_mean_expanding,
 )
 
-CURVE_SMOOTHING_WINDOW = 10
 SEED = 105
 EXAMPLE_TAG = "example"
 
-ALGO_COLORS = {
-    "iql": "#e74c3c",
-    "qmix": "#3498db",
-    "vdn": "#2ecc71",
-    "mappo": "#f39c12",
-    "coma": "#9b59b6",
-}
-
 
 def discover_runs(results_dir: Path) -> dict[str, dict]:
-    """Find Sacred runs matching the active ENV_VERSION and parse their metrics.
-
-    Sacred results live under:
-      sacred/<algo>/thesslink_rl:thesslink/ThessLink-v<N>/<run_id>/metrics.json
-
-    Only runs whose path matches the current env Sacred marker (``ThessLink-v…``,
-    or legacy ``GridNegotiation-v…`` paths) are returned.
-
-    Checks repo ``results/`` first, then ``epymarl/results/`` (EPyMARL default if
-    ``local_results_path`` was not set to repo root).
-    """
+    """Find Sacred runs matching the active ENV_VERSION and parse their metrics."""
     from config import ENV_SACRED_MARKER
     from thesslink_rl.env_catalog import sacred_path_variants
 
@@ -117,115 +88,8 @@ def _sync_poi_scores(env: Any, agent_configs: dict[str, AgentConfig]) -> None:
         )
 
 
-def plot_comparison_curves(
-    runs: dict[str, dict],
-    window: int = 10,
-):
-    """Plot all algorithms on the same figure for comparison."""
-    from config import ENV_TAG
-
-    fig, axes = plt.subplots(1, 5, figsize=(27, 5))
-
-    # Reward: common mean, or total Σ-agents mean when common_reward is off
-    ax0 = axes[0]
-    has_reward = False
-    for algo, metrics in runs.items():
-        steps, values = test_reward_series(metrics)
-        if values.size == 0:
-            continue
-        has_reward = True
-        color = ALGO_COLORS.get(algo, None)
-        ax0.plot(steps, values, alpha=0.3, color=color, linewidth=0.8)
-        smoothed = rolling_mean_expanding(values, window)
-        ax0.plot(steps, smoothed, color=color, linewidth=2, label=algo.upper())
-    ax0.set_xlabel("Timesteps")
-    ax0.set_title("Mean test return (common or Σ agents)", fontsize=12)
-    if has_reward:
-        ax0.legend(fontsize=9)
-    ax0.grid(True, alpha=0.3)
-
-    panels = [
-        ("test_negotiation_agreed_mean", "Agreement rate (%)", True),
-        (
-            "test_negotiation_optimal_mean",
-            "Golden-mean negotiation — optimal agreement (%)",
-            True,
-        ),
-        ("test_battle_won_mean", "Reach rate (%)", True),
-        ("test_ep_length_mean", "Episode length", False),
-    ]
-
-    for ax, (metric_key, label, as_percent) in zip(axes[1:], panels):
-        has_data = False
-        for algo, metrics in runs.items():
-            if metric_key not in metrics:
-                continue
-            has_data = True
-            steps = np.array(metrics[metric_key]["steps"])
-            values = np.array(metrics[metric_key]["values"])
-            if as_percent:
-                values = values * 100.0
-            color = ALGO_COLORS.get(algo, None)
-            ax.plot(steps, values, alpha=0.3, color=color, linewidth=0.8)
-            smoothed = rolling_mean_expanding(values, window)
-            ax.plot(steps, smoothed, color=color, linewidth=2,
-                    label=algo.upper())
-
-        ax.set_xlabel("Timesteps")
-        ax.set_title(label, fontsize=12)
-        if has_data:
-            ax.legend(fontsize=9)
-        ax.grid(True, alpha=0.3)
-
-    fig.suptitle(
-        f"Algorithm Comparison — ThessLink Grid Negotiation (env {ENV_TAG})",
-        fontsize=14,
-        y=1.02,
-    )
-    plt.tight_layout()
-
-    env_dir = _env_out_dir(ENV_TAG)
-    out = "training_curves-all.png"
-    fig.savefig(env_dir / out, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"  -> plots/{ENV_TAG}/{out}")
-
-
-def plot_per_algo_curves(runs: dict[str, dict], window: int = 10):
-    """Plot individual training curves per algorithm."""
-    from config import ENV_TAG
-
-    for algo, metrics in runs.items():
-        steps_arr, vals_arr = test_reward_series(metrics)
-        steps = steps_arr.tolist() if steps_arr.size else []
-        gm = vals_arr.tolist() if vals_arr.size else []
-        neg = metrics.get("test_negotiation_agreed_mean", {}).get("values", [])
-        neg_opt = metrics.get("test_negotiation_optimal_mean", {}).get("values", [])
-        reached = metrics.get("test_battle_won_mean", {}).get("values", [])
-        epl = metrics.get("test_ep_length_mean", {}).get("values", [])
-
-        stats = {
-            "common_reward": gm,
-            "negotiate": [v * 100.0 for v in neg],
-            "negotiate_optimal": [v * 100.0 for v in neg_opt],
-            "reach": [v * 100.0 for v in reached],
-            "ep_len": epl,
-        }
-
-        w = min(window, max(1, len(gm)))
-        plot_training_curves(
-            stats,
-            window=w,
-            algo=algo,
-            env_name=ENV_TAG,
-            timesteps=steps if steps else None,
-        )
-        fname = _make_filename("training_curves", "png", algo)
-        print(f"  -> plots/{ENV_TAG}/{fname}")
-
-
-def generate_example_plots() -> None:
-    """Exactly three files when no training metrics: one demo per plot type."""
+def generate_example_outputs() -> None:
+    """Write one example heatmap PNG and one example GIF from a random-policy episode."""
     from config import ENV_GRID_SIZE, ENV_TAG, GridNegotiationEnv
 
     cfg_0 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "human.yaml"))
@@ -235,40 +99,19 @@ def generate_example_plots() -> None:
     env.reset(seed=SEED)
     _sync_poi_scores(env, agent_configs)
 
-    n = 24
-    steps = [i * 50_000 for i in range(1, n + 1)]
-    stats = {
-        "common_reward": [8.0 + i * 0.35 + (i % 3) * 0.2 for i in range(n)],
-        "negotiate": [min(98.0, 15.0 + i * 2.8) for i in range(n)],
-        "negotiate_optimal": [min(95.0, 12.0 + i * 2.2) for i in range(n)],
-        "reach": [min(99.0, 8.0 + i * 3.2) for i in range(n)],
-        "ep_len": [max(12.0, 130.0 - i * 3.5) for i in range(n)],
-    }
-
-    print(f"[1/3] Example training curves ({_make_filename('training_curves', 'png', EXAMPLE_TAG)})")
-    plot_training_curves(
-        stats,
-        window=min(10, max(1, n)),
-        algo=EXAMPLE_TAG,
-        env_name=ENV_TAG,
-        timesteps=steps,
-    )
-    print(f"  -> plots/{ENV_TAG}/{_make_filename('training_curves', 'png', EXAMPLE_TAG)}")
-
-    print(f"[2/3] Example eval heatmaps ({_make_filename('eval_heatmaps', 'png', EXAMPLE_TAG)})")
+    heatmap_fname = _make_filename("eval_heatmaps", "png", EXAMPLE_TAG)
+    print(f"[1/2] Example eval heatmaps ({heatmap_fname})")
     render_eval_heatmaps(
-        env,
-        agent_configs,
+        env, agent_configs,
+        title="Example — add results/ (Sacred) to visualize real runs",
         algo=EXAMPLE_TAG,
         env_name=ENV_TAG,
-        title="Example — add results/ (Sacred) to plot real runs",
     )
-    print(f"  -> plots/{ENV_TAG}/{_make_filename('eval_heatmaps', 'png', EXAMPLE_TAG)}")
+    print(f"  -> plots/{ENV_TAG}/{heatmap_fname}")
 
-    env.reset(seed=SEED)
-    _sync_poi_scores(env, agent_configs)
     frames = random_episode_frames(env)
-    print(f"[3/3] Example episode replay ({_make_filename('episode_replay', 'gif', EXAMPLE_TAG)})")
+    gif_fname = _make_filename("episode_replay", "gif", EXAMPLE_TAG)
+    print(f"[2/2] Example episode replay ({gif_fname})")
     replay_episode(
         frames,
         env,
@@ -276,7 +119,7 @@ def generate_example_plots() -> None:
         algo=EXAMPLE_TAG,
         env_name=ENV_TAG,
     )
-    print(f"  -> plots/{ENV_TAG}/{_make_filename('episode_replay', 'gif', EXAMPLE_TAG)}")
+    print(f"  -> plots/{ENV_TAG}/{gif_fname}")
 
 
 def generate_heatmaps_and_replays(
@@ -286,24 +129,19 @@ def generate_heatmaps_and_replays(
     runs: dict[str, dict] | None = None,
     models_root: Path | None = None,
 ):
-    """Generate one eval heatmap PNG and per-algorithm episode replay GIFs on the same seed.
-
-    Episode GIFs are written **only** when a checkpoint can be loaded from
-    *models_root* (default: *results_dir*/models). No random-policy GIFs.
-    """
+    """Generate one shared eval heatmap PNG and per-algorithm episode replay GIFs."""
     from config import ENV_CONFIG, ENV_GRID_SIZE, ENV_SACRED_MARKER, ENV_TAG, GridNegotiationEnv
 
     cfg_0 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "human.yaml"))
     cfg_1 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "taxi.yaml"))
     agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
-
     env = GridNegotiationEnv(agent_configs=agent_configs, seed=SEED, grid_size=ENV_GRID_SIZE)
-
     env.reset(seed=SEED)
     _sync_poi_scores(env, agent_configs)
 
+    heatmap_fname = _make_filename("eval_heatmaps", "png", None)
     render_eval_heatmaps(env, agent_configs, algo=None, env_name=ENV_TAG)
-    print(f"  -> plots/{ENV_TAG}/{_make_filename('eval_heatmaps', 'png', None)}")
+    print(f"  -> plots/{ENV_TAG}/{heatmap_fname}")
 
     for raw_algo in algos:
         algo = raw_algo.lower()
@@ -333,24 +171,17 @@ def generate_heatmaps_and_replays(
                     )
                 except FileNotFoundError as e:
                     extra = getattr(e, "filename", None)
-                    if extra:
-                        extra = f" ({extra})"
-                    else:
-                        extra = ""
                     print(
-                        f"  episode replay ({algo}): skipped — missing file{extra}: {e!r}",
+                        f"  episode replay ({algo}): skipped — missing file"
+                        f"{f' ({extra})' if extra else ''}: {e!r}",
                     )
                 except Exception as e:
-                    print(
-                        f"  episode replay ({algo}): skipped — load/rollout failed: {e!r}",
-                    )
+                    print(f"  episode replay ({algo}): skipped — load/rollout failed: {e!r}")
             else:
                 hint = describe_models_dir_status(models_root, results_dir)
                 print(f"  episode replay ({algo}): skipped — {hint}")
         elif results_dir is not None:
-            print(
-                f"  episode replay ({algo}): skipped — no Sacred metrics for this algo",
-            )
+            print(f"  episode replay ({algo}): skipped — no Sacred metrics for this algo")
 
         if frames is not None:
             fname = _make_filename("episode_replay", "gif", algo)
@@ -418,7 +249,7 @@ def _resolve_env_selector(cli_env: str | None) -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Visualize ThessLink RL training results")
+    parser = argparse.ArgumentParser(description="Generate episode replay GIFs for ThessLink RL")
     parser.add_argument(
         "--env",
         type=str,
@@ -437,30 +268,17 @@ def main():
     runs = discover_runs(RESULTS_DIR)
     if not runs:
         print(
-            "No Sacred metrics for this selection — writing exactly 3 example files "
-            f"(*-{EXAMPLE_TAG}.*).",
+            f"No Sacred metrics for this selection — writing example outputs (*-{EXAMPLE_TAG}.*).",
         )
-        generate_example_plots()
-        print(f"Done! Plots saved to plots/{ENV_TAG}/")
+        generate_example_outputs()
+        print(f"Done! Outputs saved to plots/{ENV_TAG}/")
         return
 
     algos = sorted(runs.keys())
     print(f"Found {len(algos)} algorithm(s): {', '.join(a.upper() for a in algos)}")
-    print(
-        "Output: training_curves-all.png, eval_heatmaps.png, "
-        "training_curves-<alg>.png per algorithm, "
-        f"episode_replay-<alg>.gif per algorithm when checkpoints exist under {RESULTS_DIR / 'models'}.\n",
-    )
-
     print_summary(runs)
 
-    print("[1/3] Comparison — training_curves-all.png")
-    plot_comparison_curves(runs, window=CURVE_SMOOTHING_WINDOW)
-
-    print("[2/3] Per-algorithm training curves (one PNG per algo)...")
-    plot_per_algo_curves(runs, window=CURVE_SMOOTHING_WINDOW)
-
-    print("[3/3] Eval heatmap (one) + per-algorithm episode GIFs (best checkpoint)...")
+    print("Generating eval heatmap PNG + episode GIFs (best checkpoint per algorithm)...")
     generate_heatmaps_and_replays(
         algos,
         results_dir=RESULTS_DIR,
@@ -468,7 +286,7 @@ def main():
         models_root=None,
     )
 
-    print(f"Done! Plots saved to plots/{ENV_TAG}/")
+    print(f"Done! Outputs saved to plots/{ENV_TAG}/")
 
 
 if __name__ == "__main__":

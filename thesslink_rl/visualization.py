@@ -1,10 +1,9 @@
-"""Visualization: grid rendering, evaluation heatmaps, training curves, and episode replay.
+"""Visualization: grid rendering and episode replay GIFs.
 
 All scoring and heatmap computation is delegated to ``evaluation.py``.
 This module only handles rendering.
 
 Outputs go under ``thesslink_rl.constants.PLOTS_DIR`` (``<repo>/plots``), not the process CWD.
-File-oriented helpers default to ``show=False`` (non-interactive / headless).
 """
 
 from __future__ import annotations
@@ -58,10 +57,7 @@ def _heatmap_panel_subtitle(cfg: AgentConfig, agent_label: str) -> str:
 
 
 def _poi_colors(scores: np.ndarray | None) -> list[str]:
-    """Return a color per POI index, ranked by score: green=best, blue=mid, red=worst.
-
-    If *scores* is None or all equal, falls back to index order.
-    """
+    """Return a color per POI index, ranked by score: green=best, blue=mid, red=worst."""
     n = len(POI_RANK_COLORS)
     if scores is None or len(scores) == 0:
         return list(POI_RANK_COLORS[:n])
@@ -95,16 +91,13 @@ def _make_filename(
     return "-".join(parts) + f".{ext}"
 
 
-# ── 1. Static grid snapshot ─────────────────────────────────────────────
+# ── 1. Static grid snapshot (used for GIF frame rendering) ─────────────
 
 def render_grid(
     env: GridNegotiationEnv,
     title: str = "",
     ax: plt.Axes | None = None,
     show: bool = False,
-    save_path: str | None = None,
-    algo: str | None = None,
-    env_name: str | None = None,
     poi_scores: np.ndarray | None = None,
 ) -> plt.Axes:
     """Draw the current grid state with obstacles, POIs, and agents.
@@ -183,17 +176,12 @@ def render_grid(
 
     ax.set_title(title + phase_tag + neg_info, fontsize=11)
 
-    if save_path is True:
-        save_path = _make_filename("grid", "png", algo, env_name)
-    if save_path:
-        out = _env_out_dir(env_name)
-        ax.figure.savefig(out / save_path, dpi=150, bbox_inches="tight")
     if show and standalone:
         plt.show()
     return ax
 
 
-# ── 2. Heatmap panel drawing ────────────────────────────────────────────
+# ── 2. Heatmap panel drawing (used for GIF frame rendering) ────────────
 
 def _draw_heatmap_panel(
     ax: plt.Axes,
@@ -262,21 +250,17 @@ def _draw_heatmap_panel(
     ax.set_title(subtitle or f"{cfg.name} eval", fontsize=10)
 
 
-# ── 3. Static 3-panel heatmap image ────────────────────────────────────
+# ── 3. Static 3-panel heatmap PNG ──────────────────────────────────────
 
 def render_eval_heatmaps(
     env: GridNegotiationEnv,
     agent_configs: Dict[str, AgentConfig],
     title: str = "",
     show: bool = False,
-    save_path: str | None = None,
     algo: str | None = None,
     env_name: str | None = None,
 ) -> plt.Figure:
-    """Draw a 3-panel image: agent_0 heatmap | grid | agent_1 heatmap.
-
-    Heatmaps are computed from spawn positions (current_pos = spawn).
-    """
+    """Save a 3-panel PNG: agent_0 heatmap | grid | agent_1 heatmap."""
     agents = env.possible_agents
     fig, (ax_left, ax_mid, ax_right) = plt.subplots(1, 3, figsize=(19, 6))
     agent_axes = {agents[0]: ax_left, agents[1]: ax_right}
@@ -306,110 +290,16 @@ def render_eval_heatmaps(
     plt.tight_layout()
     fig.suptitle(title or "Agent Evaluation Heatmaps", fontsize=13, y=1.02)
 
-    if save_path is True:
-        save_path = _make_filename("eval_heatmaps", "png", algo, env_name)
-    if save_path:
-        out = _env_out_dir(env_name)
-        fig.savefig(out / save_path, dpi=150, bbox_inches="tight")
+    save_path = _make_filename("eval_heatmaps", "png", algo, env_name)
+    out = _env_out_dir(env_name)
+    fig.savefig(out / save_path, dpi=150, bbox_inches="tight")
     if show:
         plt.show()
     plt.close(fig)
     return fig
 
 
-# ── 4. Training curves ──────────────────────────────────────────────────
-
-
-def rolling_mean_expanding(values: np.ndarray, window: int) -> np.ndarray:
-    """Trailing mean over at most *window* points; same length as *values*.
-
-    The first index uses a 1-point mean, then 2, … up to *window* points, so the
-    smoothed curve spans the full x-range (unlike ``np.convolve(..., mode="valid")``).
-    """
-    values = np.asarray(values, dtype=float)
-    n = len(values)
-    if n == 0:
-        return values
-    w = max(1, int(window))
-    cumsum = np.concatenate([[0.0], np.cumsum(values)])
-    out = np.empty(n, dtype=float)
-    for i in range(n):
-        lo = max(0, i - w + 1)
-        out[i] = (cumsum[i + 1] - cumsum[lo]) / (i - lo + 1)
-    return out
-
-
-def plot_training_curves(
-    stats: Dict[str, list],
-    window: int = 20,
-    save_path: str | bool = True,
-    show: bool = False,
-    algo: str | None = None,
-    env_name: str | None = None,
-    timesteps: list | None = None,
-):
-    """Plot test metrics vs timesteps: return, agreement / golden-mean optimal / reach, ep length.
-
-    *Golden-mean* = agreed on ``optimal_poi`` (``evaluation``); see that module's docstring.
-
-    Policy-gradient / TD *losses* are training objectives logged separately by EPyMARL,
-    not environment returns — omit here to focus on eval behaviour.
-    """
-    panels = [
-        ("common_reward", "Mean test return", "#2ecc71"),
-        ("negotiate", "Agreement rate (%)", "#9b59b6"),
-        (
-            "negotiate_optimal",
-            "Golden-mean negotiation — optimal agreement (%)",
-            "#8e44ad",
-        ),
-        ("reach", "Reach rate (%)", "#3498db"),
-        ("ep_len", "Episode length", "#e67e22"),
-    ]
-
-    active_panels = [p for p in panels if len(stats.get(p[0], [])) > 0]
-    if not active_panels:
-        active_panels = panels
-
-    n_panels = len(active_panels)
-    fig, axes = plt.subplots(1, n_panels, figsize=(5 * n_panels, 4))
-    if n_panels == 1:
-        axes = [axes]
-
-    x = np.asarray(timesteps, dtype=float) if timesteps is not None else None
-
-    for ax, (key, label, color) in zip(axes, active_panels):
-        data = np.array(stats.get(key, []))
-        if len(data) == 0:
-            ax.set_title(label)
-            continue
-        if x is not None and len(x) == len(data):
-            xv = x
-            ax.set_xlabel("Timesteps")
-        else:
-            xv = np.arange(1, len(data) + 1)
-            ax.set_xlabel("Test index")
-        ax.plot(xv, data, alpha=0.25, color=color, linewidth=0.8)
-        smoothed = rolling_mean_expanding(data, window)
-        ax.plot(xv, smoothed, color=color, linewidth=2,
-                label=f"{window}-pt avg")
-        ax.legend(fontsize=8)
-        ax.set_title(label, fontsize=11)
-        ax.grid(True, alpha=0.3)
-
-    fig.suptitle("Training Progress", fontsize=13, y=1.02)
-    plt.tight_layout()
-    if save_path is True:
-        save_path = _make_filename("training_curves", "png", algo, env_name)
-    if save_path:
-        out = _env_out_dir(env_name)
-        fig.savefig(out / save_path, dpi=150, bbox_inches="tight")
-    if show:
-        plt.show()
-    plt.close(fig)
-
-
-# ── 5. Episode replay animation ─────────────────────────────────────────
+# ── 4. Episode replay GIF ───────────────────────────────────────────────
 
 def replay_episode(
     frames: list[dict],
@@ -422,7 +312,7 @@ def replay_episode(
     algo: str | None = None,
     env_name: str | None = None,
 ):
-    """Animate an episode from a list of frame snapshots.
+    """Animate an episode from a list of frame snapshots and save as a GIF.
 
     Negotiation frames use *neg_interval_ms* (slow) and navigation frames
     use *nav_interval_ms* (fast).  Each frame's action description is
@@ -585,7 +475,7 @@ def capture_frame(
 
 
 def random_episode_frames(env: Any, max_steps: int = 40) -> list[dict]:
-    """Build frames with a fixed RNG walk (demo / smoke GIFs when no checkpoint)."""
+    """Build frames with a fixed RNG walk (demo GIFs when no checkpoint)."""
     rng = np.random.RandomState(99)
     frames = [capture_frame(env)]
     for _ in range(max_steps):
