@@ -19,8 +19,19 @@ Changes over v6:
 - Per-agent timeout penalty raised to -8.0 (vs -5.0 team-level in v6) and
   applied individually: each agent who has NOT reached pays the penalty, so
   fast agents are not penalised for a slow partner.
-- Milestones removed (cleaner gradient, shaping already provides dense signal).
 - Uses env v3 (obs size 18, same as v6) — no peer-position features.
+
+Fixes applied vs. initial v7 run:
+- Agreed POI now set to optimal_poi (was random). Quality is always 1.0, so the
+  arrival reward is deterministic (25.0) and the BFS target is stable per episode.
+  Random POI choice was making terminal rewards noisy and harder to bootstrap.
+- Truncation is now managed internally: wrapper tracks nav_steps vs. time_limit
+  so the timeout penalty fires correctly. Previously, the core v3 env never sets
+  truncated=True, so the TimeLimit wrapper (applied by gymma above this wrapper)
+  truncated episodes without the penalty ever being applied.
+- First-arrival milestone added (5.0): gives value-based methods a bootstrapping
+  anchor before the full team terminates, helping Q-values propagate toward goal
+  states even in the early stages of training when joint success is rare.
 """
 
 from __future__ import annotations
@@ -54,6 +65,7 @@ _NAV_STEP_PENALTY = -0.001      # small: BFS shaping dominates
 _NAV_ARRIVAL_SCALE = 25.0       # raised from 10.0; compensates for no team bonus
 _NAV_TEAM_SCALE = 0.0           # removed: avoids cross-agent credit-assignment issues
 _NAV_TIMEOUT_PENALTY = -8.0     # per-agent, only for agents who did not arrive
+_NAV_FIRST_ARRIVAL_BONUS = 5.0  # milestone for first agent to reach the target
 
 
 def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray, max_bfs_dist: float) -> float:
@@ -75,6 +87,7 @@ class GridNegotiationGymEnv(gym.Env):
         render_mode: str | None = None,
         seed: int = 0,
         grid_size: int = GRID_SIZE,
+        time_limit: int = 480,
         **kwargs: Any,
     ):
         super().__init__()
@@ -90,6 +103,7 @@ class GridNegotiationGymEnv(gym.Env):
             grid_size=grid_size,
         )
         self._grid_size = grid_size
+        self._time_limit = time_limit
         self.n_agents = NUM_AGENTS
         self.action_space = spaces.Tuple(
             tuple(spaces.Discrete(ACTION_DIM) for _ in range(self.n_agents))
@@ -127,7 +141,7 @@ class GridNegotiationGymEnv(gym.Env):
             self._env.poi_scores[agent] = scores
 
         self._optimal_poi = optimal_poi(self._poi_scores, agents)
-        self._agreed_poi = int(self._env._rng.randint(0, NUM_POIS))
+        self._agreed_poi = self._optimal_poi
 
         self._env.agreed_poi = self._agreed_poi
         self._env.phase = "navigation"
@@ -190,12 +204,15 @@ class GridNegotiationGymEnv(gym.Env):
                 self._individual_arrived[a] = True
                 if self._first_arrival_step == 0:
                     self._first_arrival_step = self._nav_steps
+                    rewards[i] += _NAV_FIRST_ARRIVAL_BONUS
                 rewards[i] += quality * _NAV_ARRIVAL_SCALE
 
         all_reached = all(self._env.agents_reached[a] for a in agents)
 
         done = all(terminated_d[a] for a in agents)
-        truncated = all(truncated_d[a] for a in agents)
+        # v3 core env never sets truncated=True; track limit internally so the
+        # timeout penalty fires before gymma's TimeLimit wrapper sees the step.
+        truncated = self._nav_steps >= self._time_limit
         if truncated and not all_reached:
             for i, a in enumerate(agents):
                 if not self._individual_arrived.get(a, False):

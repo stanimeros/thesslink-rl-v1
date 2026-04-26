@@ -16,7 +16,8 @@ Other changes over v6:
   a stronger alignment signal now that agents aren't rushing.
 - Optimal agreement bonus raised (35.0 vs 25.0).
 - Suboptimal agreement bonus removed (0.0 vs 0.5) — bad deals give nothing.
-- Wrong-agreement penalty raised (-15.0 vs -8.0) — stronger disincentive.
+- Wrong-agreement penalty raised (-12.0 vs -8.0) — stronger disincentive, but
+  reduced from initial -15.0 which caused MAPPO to prefer timeout over suboptimal deals.
 - Timeout penalty reduced (-5.0 vs -8.0) so agents aren't over-penalised
   when they correctly hold out but happen to hit the limit.
 """
@@ -57,7 +58,7 @@ _NEG_ACCEPT_BONUS = 1.5              # scale for GM-proportional accept reward
 _NEG_CONVERGENCE_BONUS = 0.5         # both suggested the same POI before accept
 _NEG_OPTIMAL_AGREEMENT_BONUS = 35.0  # strong signal for reaching the best deal
 _NEG_SUBOPTIMAL_AGREEMENT_BONUS = 0.0  # no reward for a bad deal
-_NEG_WRONG_AGREEMENT_PENALTY = -15.0   # strong disincentive for suboptimal choice
+_NEG_WRONG_AGREEMENT_PENALTY = -12.0   # reduced from -15.0: prevent MAPPO over-learning to time out
 _NEG_TIMEOUT_PENALTY = -5.0            # reduced vs v6: don't over-punish hold-outs
 
 
