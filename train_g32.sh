@@ -108,13 +108,6 @@ for env_cfg in "$NEG_ENV" "$NAV_ENV"; do
             with \
             local_results_path="$RESULTS_DIR_ABS" \
             "seed=${SEED}" \
-            save_model=True \
-            log_interval=20000 \
-            runner_log_interval=20000 \
-            learner_log_interval=20000 \
-            test_interval=50000 \
-            save_model_interval=400000 \
-            t_max=2000000 \
             $extra \
             "${WANDB_WITH[@]}" \
             > "$logfile" 2>&1 &
