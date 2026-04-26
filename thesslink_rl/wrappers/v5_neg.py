@@ -21,14 +21,14 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from ...evaluation import (
+from ..evaluation import (
     AgentConfig,
     compute_poi_scores,
     golden_mean_vector,
     negotiation_quality,
     optimal_poi,
 )
-from ...environments.v3 import (
+from ..environments.v3 import (
     ACT_ACCEPT,
     ACT_SUGGEST_BASE,
     ACTION_DIM,

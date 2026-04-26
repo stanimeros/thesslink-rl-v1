@@ -1,8 +1,14 @@
-"""Gymnasium multi-agent wrapper for EPyMARL -- v1 (cooperative meeting).
+"""Gymnasium multi-agent wrapper for EPyMARL compatibility.
 
-Symbolic 19-feature observation vector with GPS signal.
-Reward: agreement bonus, step penalty (-0.05), terminal (+50 * quality).
-Episode ends when ALL agents reach the agreed POI.
+EPyMARL's GymmaWrapper expects:
+  - env.unwrapped.n_agents (int)
+  - env.action_space = Tuple(Discrete, Discrete, ...)
+  - env.observation_space = Tuple(Box, Box, ...) with flat 1D observations
+  - reset() -> (tuple_of_obs, info)
+  - step(list_of_actions) -> (tuple_of_obs, list_of_rewards, done, truncated, info)
+
+Both negotiation and navigation are RL-controlled. Negotiation happens as
+normal episode steps with suggest actions; navigation follows once agents agree.
 """
 
 from __future__ import annotations
@@ -14,13 +20,13 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from ...environments.v1 import (
+from ..environments.v0 import (
     ACTION_DIM,
     NUM_AGENTS,
     OBS_FLAT_SIZE,
     GridNegotiationEnv,
 )
-from ...evaluation import (
+from ..evaluation import (
     AgentConfig,
     bfs_distances,
     compute_poi_scores,
@@ -32,7 +38,7 @@ _PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class GridNegotiationGymEnv(gym.Env):
-    """Gymnasium wrapper around GridNegotiationEnv (v1) for EPyMARL."""
+    """Gymnasium wrapper around GridNegotiationEnv for EPyMARL."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
 
@@ -43,8 +49,9 @@ class GridNegotiationGymEnv(gym.Env):
         render_mode: str | None = None,
         seed: int = 0,
         neg_agreement_scale: float = 5.0,
-        nav_step_penalty: float = 0.05,
-        nav_team_scale: float = 50.0,
+        nav_shaping_scale: float = 0.05,
+        nav_step_penalty: float = 0.01,
+        nav_team_scale: float = 20.0,
         **kwargs: Any,
     ):
         super().__init__()
@@ -68,8 +75,8 @@ class GridNegotiationGymEnv(gym.Env):
         self.observation_space = spaces.Tuple(
             tuple(
                 spaces.Box(
-                    low=-1.0,
-                    high=1.0,
+                    low=-np.inf,
+                    high=np.inf,
                     shape=(OBS_FLAT_SIZE,),
                     dtype=np.float32,
                 )
@@ -78,16 +85,29 @@ class GridNegotiationGymEnv(gym.Env):
         )
 
         self._neg_agreement_scale = neg_agreement_scale
+        self._nav_shaping_scale = nav_shaping_scale
         self._nav_step_penalty = nav_step_penalty
         self._nav_team_scale = nav_team_scale
         self._poi_scores: Dict[str, np.ndarray] = {}
         self._agreed_poi: int | None = None
         self._optimal_poi: int = 0
+        self._prev_dist: Dict[str, float] = {}
+        self._nav_steps: int = 0
         self._agreement_quality: float = 0.0
         self._negotiation_length: int = 0
         self._initial_dist: Dict[str, float] = {}
-        self._nav_steps: int = 0
         self._individual_arrived: Dict[str, bool] = {}
+
+    def _flatten_obs(self, obs_dict: Dict[str, np.ndarray]) -> np.ndarray:
+        """Concatenate the unified obs dict into a flat vector of size OBS_FLAT_SIZE."""
+        return np.concatenate([
+            obs_dict["phase"],
+            obs_dict["my_turn"],
+            obs_dict["scores"],
+            obs_dict["peer_action"],
+            obs_dict["agreed_poi"],
+            obs_dict["grid"].flatten(),
+        ])
 
     def reset(
         self, seed: int | None = None, options: dict | None = None
@@ -108,14 +128,15 @@ class GridNegotiationGymEnv(gym.Env):
 
         self._agreed_poi = None
         self._optimal_poi = optimal_poi(self._poi_scores, agents)
+        self._prev_dist = {}
+        self._nav_steps = 0
         self._agreement_quality = 0.0
         self._negotiation_length = 0
         self._initial_dist = {}
-        self._nav_steps = 0
         self._individual_arrived = {a: False for a in agents}
 
         obs_tuple = tuple(
-            self._env._get_obs(a) for a in agents
+            self._flatten_obs(self._env._get_obs(a)) for a in agents
         )
 
         info = {
@@ -123,6 +144,14 @@ class GridNegotiationGymEnv(gym.Env):
             "optimal_poi": self._optimal_poi,
         }
         return obs_tuple, info
+
+    def _bfs_dist_to_target(self, agent: str) -> float:
+        """BFS distance from agent's current position to the agreed POI."""
+        target = self._env.poi_positions[self._agreed_poi]
+        pos = tuple(self._env.agent_positions[agent])
+        dist_map = bfs_distances(pos, self._env.obstacle_map)
+        d = dist_map[target[0], target[1]]
+        return float(d) if np.isfinite(d) else float(self._env.obstacle_map.size)
 
     def step(
         self, actions: list[int] | tuple[int, ...] | np.ndarray
@@ -138,7 +167,7 @@ class GridNegotiationGymEnv(gym.Env):
         if prev_phase == "negotiation" and prev_neg_turn is not None:
             self._negotiation_length += 1
 
-        obs_tuple = tuple(obs_d[a] for a in agents)
+        obs_tuple = tuple(self._flatten_obs(obs_d[a]) for a in agents)
         rewards = [rewards_d[a] for a in agents]
 
         just_agreed = (
@@ -151,6 +180,8 @@ class GridNegotiationGymEnv(gym.Env):
             )
             self._agreement_quality = quality
             rewards = [quality * self._neg_agreement_scale] * self.n_agents
+            for a in agents:
+                self._prev_dist[a] = self._bfs_dist_to_target(a)
             target = self._env.poi_positions[self._agreed_poi]
             target_bfs = bfs_distances(target, self._env.obstacle_map)
             max_d = float(self._env.obstacle_map.size)
@@ -163,11 +194,17 @@ class GridNegotiationGymEnv(gym.Env):
         if self._agreed_poi is not None and not just_agreed:
             self._nav_steps += 1
             for i, a in enumerate(agents):
-                if self._env.agents_reached.get(a, False) and not self._individual_arrived.get(a, False):
-                    self._individual_arrived[a] = True
+                new_dist = self._bfs_dist_to_target(a)
+                old_dist = self._prev_dist.get(a, new_dist)
+                rewards[i] += (old_dist - new_dist) * self._nav_shaping_scale
+                self._prev_dist[a] = new_dist
 
             for i in range(self.n_agents):
                 rewards[i] -= self._nav_step_penalty
+
+            for i, a in enumerate(agents):
+                if self._env.agents_reached.get(a, False) and not self._individual_arrived.get(a, False):
+                    self._individual_arrived[a] = True
 
             all_reached = all(self._env.agents_reached[a] for a in agents)
             if all_reached:

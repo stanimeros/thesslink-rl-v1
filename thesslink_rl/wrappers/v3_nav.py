@@ -9,8 +9,8 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from ...evaluation import AgentConfig, bfs_distances, compute_poi_scores, negotiation_quality, optimal_poi
-from ...environments.v3 import ACTION_DIM, GRID_SIZE, NUM_AGENTS, NUM_POIS, OBS_FLAT_SIZE, GridNegotiationEnv
+from ..evaluation import AgentConfig, bfs_distances, compute_poi_scores, negotiation_quality, optimal_poi
+from ..environments.v3 import ACTION_DIM, GRID_SIZE, NUM_AGENTS, NUM_POIS, OBS_FLAT_SIZE, GridNegotiationEnv
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
 

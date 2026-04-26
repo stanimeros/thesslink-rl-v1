@@ -31,7 +31,7 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from ...environments.v2 import (
+from ..environments.v2 import (
     ACT_ACCEPT,
     ACT_SUGGEST_BASE,
     ACTION_DIM,
@@ -41,7 +41,7 @@ from ...environments.v2 import (
     OBS_FLAT_SIZE,
     GridNegotiationEnv,
 )
-from ...evaluation import (
+from ..evaluation import (
     AgentConfig,
     bfs_distances,
     compute_poi_scores,
