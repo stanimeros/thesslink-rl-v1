@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# v5_g32 (full two-phase) then v6_neg_g32 + v6_nav_g32 (--quick) in parallel.
+# Train v7 neg + v7 nav in parallel on g32.
+#
+# Kills any running training processes, wipes previous results for these two
+# env labels, then launches e3_neg_v7_g32 and e3_nav_v7_g32 side-by-side.
 #
 # Optional first argument only:
 #   ./train_g32.sh --detach   # re-exec under nohup and exit (whole pipeline in background)
@@ -14,28 +17,30 @@ mkdir -p "$LOG_DIR"
 if [[ "${1:-}" == "--detach" ]]; then
   shift
   launcher="$LOG_DIR/launcher_$(date +%Y%m%d_%H%M%S).out"
-  echo "[train_g32] Detaching full run → $launcher"
+  echo "[train_g32] Detaching → $launcher"
   nohup bash "$SCRIPT_DIR/train_g32.sh" "$@" >>"$launcher" 2>&1 &
   echo "[train_g32] Started pid=$! — safe to close this terminal. tail -f $launcher"
   exit 0
 fi
 
 if [[ $# -gt 0 ]]; then
-  echo "[train_g32] unknown argument: $1 (only optional first flag: --detach)" >&2
+  echo "[train_g32] unknown argument: $1 (only --detach is accepted)" >&2
   exit 1
 fi
 
-echo "[train_g32] Logs: $LOG_DIR"
-echo "[train_g32] Starting e3_full_v5_g32 under nohup → e3_full_v5_g32.out"
-nohup "$SCRIPT_DIR/train.sh" --env e3_full_v5_g32 >"$LOG_DIR/e3_full_v5_g32.out" 2>&1 &
-v5_pid=$!
-wait "$v5_pid"
+# ── Kill + clean ─────────────────────────────────────────────────────────────
+echo "[train_g32] Killing any running training processes..."
+"$SCRIPT_DIR/train.sh" --kill || true
 
-echo "[train_g32] e3_full_v5_g32 finished. Launching e3_neg_v6_g32 and e3_nav_v6_g32 (--quick) in parallel under nohup..."
-nohup "$SCRIPT_DIR/train.sh" --env e3_neg_v6_g32 --quick >"$LOG_DIR/e3_neg_v6_g32_quick.out" 2>&1 &
-neg_pid=$!
-nohup "$SCRIPT_DIR/train.sh" --env e3_nav_v6_g32 --quick >"$LOG_DIR/e3_nav_v6_g32_quick.out" 2>&1 &
-nav_pid=$!
-echo "[train_g32] PIDs: e3_neg_v6_g32=$neg_pid e3_nav_v6_g32=$nav_pid"
-echo "[train_g32] v6 jobs are under nohup — safe to disconnect; logs: $LOG_DIR/e3_neg_v6_g32_quick.out  $LOG_DIR/e3_nav_v6_g32_quick.out"
+# ── Launch v7 neg + v7 nav in parallel (--quick wipes only their own outputs) ─
+echo "[train_g32] Launching e3_neg_v7_g32 and e3_nav_v7_g32 in parallel..."
+nohup "$SCRIPT_DIR/train.sh" --env thesslink_e3_neg_v7_g32 --quick >"$LOG_DIR/e3_neg_v7_g32.out" 2>&1 &
+neg7_pid=$!
+nohup "$SCRIPT_DIR/train.sh" --env thesslink_e3_nav_v7_g32 --quick >"$LOG_DIR/e3_nav_v7_g32.out" 2>&1 &
+nav7_pid=$!
+
+echo "[train_g32] PIDs: e3_neg_v7_g32=$neg7_pid  e3_nav_v7_g32=$nav7_pid"
+echo "[train_g32] Logs:"
+echo "  $LOG_DIR/e3_neg_v7_g32.out"
+echo "  $LOG_DIR/e3_nav_v7_g32.out"
 echo "[train_g32] Monitor: ./train.sh --status"

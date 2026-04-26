@@ -29,3 +29,10 @@ register(id="thesslink/ThessLink-e3-nav-v6-g32", entry_point="thesslink_rl.wrapp
 # ── Environment v3 — full two-phase wrappers ──────────────────────────────────
 register(id="thesslink/ThessLink-e3-full-v5", entry_point="thesslink_rl.wrappers.full.v5:GridNegotiationGymEnv")
 register(id="thesslink/ThessLink-e3-full-v5-g32", entry_point="thesslink_rl.wrappers.full.v5:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+
+# ── v7 wrappers — improved rewards; both on env-v3 ───────────────────────────
+register(id="thesslink/ThessLink-e3-neg-v7", entry_point="thesslink_rl.wrappers.neg.v7:GridNegotiationGymEnv")
+register(id="thesslink/ThessLink-e3-neg-v7-g32", entry_point="thesslink_rl.wrappers.neg.v7:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+
+register(id="thesslink/ThessLink-e3-nav-v7", entry_point="thesslink_rl.wrappers.nav.v7:GridNegotiationGymEnv")
+register(id="thesslink/ThessLink-e3-nav-v7-g32", entry_point="thesslink_rl.wrappers.nav.v7:GridNegotiationGymEnv", kwargs={"grid_size": 32})
