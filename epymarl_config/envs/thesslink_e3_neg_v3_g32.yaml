@@ -6,7 +6,7 @@ env_args:
   pretrained_wrapper: null
   grid_size: 32
 
-common_reward: false
+common_reward: true
 
 test_greedy: True
 test_nepisode: 32

@@ -24,9 +24,12 @@ KEY_METRICS = [
     "test_return_mean",
     "test_total_return_mean",
     "test_return_std",
-    "test_negotiation_agreed_mean",
-    "test_ep_length_mean",
     "test_battle_won_mean",
+    "test_negotiation_agreed_mean",
+    "test_negotiation_quality_mean",
+    "test_negotiation_length_mean",
+    "test_navigation_quality_mean",
+    "test_navigation_length_mean",
 ]
 
 

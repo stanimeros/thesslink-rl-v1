@@ -90,7 +90,6 @@ class GridNegotiationGymEnv(gym.Env):
         self._individual_arrived: Dict[str, bool] = {}
         self._initial_dist: Dict[str, float] = {}
         self._nav_steps: int = 0
-        self._first_arrival_step: int = 0
 
     def reset(
         self, seed: int | None = None, options: dict | None = None
@@ -122,7 +121,6 @@ class GridNegotiationGymEnv(gym.Env):
         self._individual_arrived = {a: False for a in agents}
         self._initial_dist = {}
         self._nav_steps = 0
-        self._first_arrival_step = 0
         for a in agents:
             pos = tuple(self._env.agent_positions[a])
             self._prev_potentials[a] = _potential(pos, self._target_bfs, self._max_bfs_dist)
@@ -161,8 +159,6 @@ class GridNegotiationGymEnv(gym.Env):
             rewards[i] += _NAV_STEP_PENALTY
             if self._env.agents_reached.get(a, False) and not self._individual_arrived[a]:
                 self._individual_arrived[a] = True
-                if self._first_arrival_step == 0:
-                    self._first_arrival_step = self._nav_steps
                 rewards[i] += quality * _NAV_ARRIVAL_SCALE
 
         all_reached = all(self._env.agents_reached[a] for a in agents)
@@ -180,11 +176,8 @@ class GridNegotiationGymEnv(gym.Env):
         nav_eff = min(1.0, mean_opt / self._nav_steps) if (all_reached and self._nav_steps > 0) else 0.0
         info: dict[str, Any] = {
             "battle_won": float(all_reached),
-            "battle_won_navigation": float(all_reached),
-            "episode_length_navigation": float(self._nav_steps),
-            "reached_poi": float(all_reached),
-            "nav_efficiency": nav_eff,
-            "first_arrival_step": float(self._first_arrival_step),
+            "navigation_length": float(self._nav_steps),
+            "navigation_quality": nav_eff,
         }
         return obs_tuple, rewards, done, truncated, info
 
