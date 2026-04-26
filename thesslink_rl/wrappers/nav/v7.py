@@ -205,9 +205,7 @@ class GridNegotiationGymEnv(gym.Env):
         nav_eff = min(1.0, mean_opt / self._nav_steps) if (all_reached and self._nav_steps > 0) else 0.0
         info: dict[str, Any] = {
             "battle_won": float(all_reached),
-            "battle_won_negotiation": 1.0,
             "battle_won_navigation": float(all_reached),
-            "episode_length_negotiation": 0.0,
             "episode_length_navigation": float(self._nav_steps),
             "reached_poi": float(all_reached),
             "nav_efficiency": nav_eff,

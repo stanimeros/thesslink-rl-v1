@@ -189,9 +189,7 @@ class GridNegotiationGymEnv(gym.Env):
         info: dict[str, Any] = {
             "battle_won": float(done),
             "battle_won_negotiation": float(done),
-            "battle_won_navigation": 0.0,
             "episode_length_negotiation": float(self._negotiation_length),
-            "episode_length_navigation": 0.0,
             "negotiation_agreed": float(done),
             "negotiation_optimal": float(agreed_optimal),
             "agreement_quality": self._agreement_quality,
