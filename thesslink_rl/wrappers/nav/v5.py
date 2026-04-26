@@ -1,10 +1,10 @@
-"""Gym wrapper for navigation-only training (v7 reward shaping on v3 core env).
+"""Gym wrapper for navigation-only training (w5 reward shaping on v3 core env).
 
-Key insight over v6: navigation is independent single-agent RL for each agent.
+Key insight over w4: navigation is independent single-agent RL for each agent.
 Both agents navigate to the same agreed POI, but each agent's reward is purely
 a function of its own position — no team bonus, no cross-agent dependency.
 
-Why the team bonus in v6 breaks IQL/VDN/COMA:
+Why the team bonus in w4 breaks IQL/VDN/COMA:
   The episode only terminates when BOTH agents arrive. The team bonus (30 * quality)
   is the largest reward signal but arrives only after the slower agent reaches the
   target. From an individual Q-learning perspective (IQL), agent A's Q-value becomes
@@ -12,16 +12,16 @@ Why the team bonus in v6 breaks IQL/VDN/COMA:
   the credit-assignment problem much harder for weaker algorithms that cannot
   implicitly model other agents.
 
-Changes over v6:
+Changes over w4:
 - Team bonus removed entirely (_NAV_TEAM_SCALE = 0).
 - Individual arrival reward raised to 25.0 (was 10.0) to compensate for the
   missing team bonus and make the sparse terminal signal easier to bootstrap.
-- Per-agent timeout penalty raised to -8.0 (vs -5.0 team-level in v6) and
+- Per-agent timeout penalty raised to -8.0 (vs -5.0 team-level in w4) and
   applied individually: each agent who has NOT reached pays the penalty, so
   fast agents are not penalised for a slow partner.
-- Uses env v3 (obs size 18, same as v6) — no peer-position features.
+- Uses env v3 (obs size 18, same as w4) — no peer-position features.
 
-Fixes applied vs. initial v7 run:
+Fixes applied vs. initial w5 run:
 - Agreed POI now set to optimal_poi (was random). Quality is always 1.0, so the
   arrival reward is deterministic (25.0) and the BFS target is stable per episode.
   Random POI choice was making terminal rewards noisy and harder to bootstrap.
@@ -60,11 +60,6 @@ from ...environments.v3 import (
 )
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
-_SHAPING_GAMMA = 0.99
-_NAV_STEP_PENALTY = -0.001      # small: BFS shaping dominates
-_NAV_ARRIVAL_SCALE = 25.0       # raised from 10.0; compensates for no team bonus
-_NAV_TIMEOUT_PENALTY = -8.0     # per-agent, only for agents who did not arrive
-_NAV_FIRST_ARRIVAL_BONUS = 5.0  # milestone for first agent to reach the target
 
 
 def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray, max_bfs_dist: float) -> float:
@@ -75,7 +70,7 @@ def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray, max_bfs_dist: f
 
 
 class GridNegotiationGymEnv(gym.Env):
-    """Navigation-only env: each agent independently navigates to the agreed POI (v7)."""
+    """Navigation-only env: each agent independently navigates to the agreed POI (w5)."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
 
@@ -87,6 +82,11 @@ class GridNegotiationGymEnv(gym.Env):
         seed: int = 0,
         grid_size: int = GRID_SIZE,
         time_limit: int = 480,
+        shaping_gamma: float = 0.99,
+        step_penalty: float = -0.001,
+        arrival_scale: float = 25.0,
+        timeout_penalty: float = -8.0,
+        first_arrival_bonus: float = 5.0,
         **kwargs: Any,
     ):
         super().__init__()
@@ -103,6 +103,11 @@ class GridNegotiationGymEnv(gym.Env):
         )
         self._grid_size = grid_size
         self._time_limit = time_limit
+        self._shaping_gamma = shaping_gamma
+        self._step_penalty = step_penalty
+        self._arrival_scale = arrival_scale
+        self._timeout_penalty = timeout_penalty
+        self._first_arrival_bonus = first_arrival_bonus
         self.n_agents = NUM_AGENTS
         self.action_space = spaces.Tuple(
             tuple(spaces.Discrete(ACTION_DIM) for _ in range(self.n_agents))
@@ -195,16 +200,16 @@ class GridNegotiationGymEnv(gym.Env):
             cur_pos = tuple(self._env.agent_positions[a])
             cur_phi = _potential(cur_pos, self._target_bfs, self._max_bfs_dist)
             prev_phi = self._prev_potentials.get(a, cur_phi)
-            rewards[i] += _SHAPING_GAMMA * cur_phi - prev_phi
+            rewards[i] += self._shaping_gamma * cur_phi - prev_phi
             self._prev_potentials[a] = cur_phi
-            rewards[i] += _NAV_STEP_PENALTY
+            rewards[i] += self._step_penalty
 
             if self._env.agents_reached.get(a, False) and not self._individual_arrived[a]:
                 self._individual_arrived[a] = True
                 if not self._first_arrived:
                     self._first_arrived = True
-                    rewards[i] += _NAV_FIRST_ARRIVAL_BONUS
-                rewards[i] += quality * _NAV_ARRIVAL_SCALE
+                    rewards[i] += self._first_arrival_bonus
+                rewards[i] += quality * self._arrival_scale
 
         all_reached = all(self._env.agents_reached[a] for a in agents)
 
@@ -215,7 +220,7 @@ class GridNegotiationGymEnv(gym.Env):
         if truncated and not all_reached:
             for i, a in enumerate(agents):
                 if not self._individual_arrived.get(a, False):
-                    rewards[i] += _NAV_TIMEOUT_PENALTY
+                    rewards[i] += self._timeout_penalty
 
         mean_opt = sum(self._initial_dist[a] for a in agents) / self.n_agents
         nav_eff = min(1.0, mean_opt / self._nav_steps) if (all_reached and self._nav_steps > 0) else 0.0

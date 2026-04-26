@@ -1,4 +1,4 @@
-"""Gym wrapper for negotiation-only training (v6 reward shaping on v3 core env).
+"""Gym wrapper for negotiation-only training (w5 reward shaping on v3 core env).
 
 Improvements over v5_neg:
 - Convergence bonus: when both agents have already suggested the same POI,
@@ -42,18 +42,9 @@ from ...environments.v3 import (
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
 
-_NEG_STEP_PENALTY = -0.05            # per negotiation turn
-_NEG_SUGGEST_BONUS = 0.15            # scale for GM-proportional suggest reward
-_NEG_ACCEPT_BONUS = 1.5              # scale for GM-proportional accept reward
-_NEG_CONVERGENCE_BONUS = 0.3         # both suggested the same POI before accept (new in v6)
-_NEG_OPTIMAL_AGREEMENT_BONUS = 25.0  # was 22.0
-_NEG_SUBOPTIMAL_AGREEMENT_BONUS = 0.5    # reduced: bad deal gives almost nothing
-_NEG_WRONG_AGREEMENT_PENALTY = -8.0     # was -5.0: strong disincentive
-_NEG_TIMEOUT_PENALTY = -8.0          # was -5.0
-
 
 class GridNegotiationGymEnv(gym.Env):
-    """Negotiation-only environment with terminal-on-agreement (v6 rewards)."""
+    """Negotiation-only environment with terminal-on-agreement (w5 rewards)."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
 
@@ -64,6 +55,14 @@ class GridNegotiationGymEnv(gym.Env):
         render_mode: str | None = None,
         seed: int = 0,
         grid_size: int = GRID_SIZE,
+        step_penalty: float = -0.05,
+        suggest_bonus: float = 0.15,
+        accept_bonus: float = 1.5,
+        convergence_bonus: float = 0.3,
+        optimal_agreement_bonus: float = 25.0,
+        suboptimal_agreement_bonus: float = 0.5,
+        wrong_agreement_penalty: float = -8.0,
+        timeout_penalty: float = -8.0,
         **kwargs: Any,
     ):
         super().__init__()
@@ -78,6 +77,14 @@ class GridNegotiationGymEnv(gym.Env):
             seed=seed,
             grid_size=grid_size,
         )
+        self._step_penalty = step_penalty
+        self._suggest_bonus = suggest_bonus
+        self._accept_bonus = accept_bonus
+        self._convergence_bonus = convergence_bonus
+        self._optimal_agreement_bonus = optimal_agreement_bonus
+        self._suboptimal_agreement_bonus = suboptimal_agreement_bonus
+        self._wrong_agreement_penalty = wrong_agreement_penalty
+        self._timeout_penalty = timeout_penalty
         self.n_agents = NUM_AGENTS
         self.action_space = spaces.Tuple(
             tuple(spaces.Discrete(ACTION_DIM) for _ in range(self.n_agents))
@@ -144,21 +151,18 @@ class GridNegotiationGymEnv(gym.Env):
             idx = agents.index(active)
             peer = agents[1 - idx]
 
-            rewards[idx] += _NEG_STEP_PENALTY
+            rewards[idx] += self._step_penalty
 
             if ACT_SUGGEST_BASE <= act < ACT_SUGGEST_BASE + NUM_SUGGEST_ACTIONS:
                 suggested = act - ACT_SUGGEST_BASE
-                # Reward proportional to golden-mean quality of this suggestion
-                rewards[idx] += _NEG_SUGGEST_BONUS * float(self._gm_norm[suggested])
+                rewards[idx] += self._suggest_bonus * float(self._gm_norm[suggested])
 
             elif act == ACT_ACCEPT and peer in prev_suggestions:
                 peer_suggested = prev_suggestions[peer]
-                # Reward proportional to golden-mean quality of the accepted POI
-                rewards[idx] += _NEG_ACCEPT_BONUS * float(self._gm_norm[peer_suggested])
+                rewards[idx] += self._accept_bonus * float(self._gm_norm[peer_suggested])
 
-                # Convergence bonus: both previously suggested the same POI
                 if active in prev_suggestions and prev_suggestions[active] == peer_suggested:
-                    rewards[idx] += _NEG_CONVERGENCE_BONUS
+                    rewards[idx] += self._convergence_bonus
 
         if self._agreed_poi is None and self._env.agreed_poi is not None:
             self._agreed_poi = self._env.agreed_poi
@@ -167,16 +171,16 @@ class GridNegotiationGymEnv(gym.Env):
             agreed_optimal_now = self._agreed_poi == self._optimal_poi
             for i in range(self.n_agents):
                 if agreed_optimal_now:
-                    rewards[i] += quality * _NEG_OPTIMAL_AGREEMENT_BONUS
+                    rewards[i] += quality * self._optimal_agreement_bonus
                 else:
-                    rewards[i] += quality * _NEG_SUBOPTIMAL_AGREEMENT_BONUS
-                    rewards[i] += _NEG_WRONG_AGREEMENT_PENALTY
+                    rewards[i] += quality * self._suboptimal_agreement_bonus
+                    rewards[i] += self._wrong_agreement_penalty
 
         done = self._env.agreed_poi is not None
         truncated = all(truncated_d[a] for a in agents)
         if truncated and not done:
             for i in range(self.n_agents):
-                rewards[i] += _NEG_TIMEOUT_PENALTY
+                rewards[i] += self._timeout_penalty
 
         agreed_optimal = done and (self._agreed_poi == self._optimal_poi)
         info: dict[str, Any] = {

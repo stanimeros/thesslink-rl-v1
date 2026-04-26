@@ -42,6 +42,9 @@ class GridNegotiationGymEnv(gym.Env):
         agent1_config: str | None = None,
         render_mode: str | None = None,
         seed: int = 0,
+        neg_agreement_scale: float = 5.0,
+        nav_step_penalty: float = 0.05,
+        nav_team_scale: float = 50.0,
         **kwargs: Any,
     ):
         super().__init__()
@@ -74,6 +77,9 @@ class GridNegotiationGymEnv(gym.Env):
             )
         )
 
+        self._neg_agreement_scale = neg_agreement_scale
+        self._nav_step_penalty = nav_step_penalty
+        self._nav_team_scale = nav_team_scale
         self._poi_scores: Dict[str, np.ndarray] = {}
         self._agreed_poi: int | None = None
         self._optimal_poi: int = 0
@@ -144,7 +150,7 @@ class GridNegotiationGymEnv(gym.Env):
                 self._agreed_poi, self._poi_scores, agents,
             )
             self._agreement_quality = quality
-            rewards = [quality * 5.0] * self.n_agents
+            rewards = [quality * self._neg_agreement_scale] * self.n_agents
             target = self._env.poi_positions[self._agreed_poi]
             target_bfs = bfs_distances(target, self._env.obstacle_map)
             max_d = float(self._env.obstacle_map.size)
@@ -161,14 +167,14 @@ class GridNegotiationGymEnv(gym.Env):
                     self._individual_arrived[a] = True
 
             for i in range(self.n_agents):
-                rewards[i] -= 0.05
+                rewards[i] -= self._nav_step_penalty
 
             all_reached = all(self._env.agents_reached[a] for a in agents)
             if all_reached:
                 quality = negotiation_quality(
                     self._agreed_poi, self._poi_scores, agents,
                 )
-                rewards = [quality * 50.0] * self.n_agents
+                rewards = [quality * self._nav_team_scale] * self.n_agents
 
         done = all(terminated_d[a] for a in agents)
         truncated = all(truncated_d[a] for a in agents)

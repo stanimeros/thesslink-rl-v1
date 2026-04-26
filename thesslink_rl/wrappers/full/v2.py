@@ -51,8 +51,6 @@ from ...evaluation import (
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
 
-_SHAPING_GAMMA = 0.99
-
 
 def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray, max_bfs_dist: float) -> float:
     """Phi(s) = -BFS distance from agent to target POI / max_dist."""
@@ -74,6 +72,14 @@ class GridNegotiationGymEnv(gym.Env):
         render_mode: str | None = None,
         seed: int = 0,
         grid_size: int = GRID_SIZE,
+        shaping_gamma: float = 0.99,
+        neg_suggest_bonus: float = 0.1,
+        neg_persist_bonus: float = 0.05,
+        neg_accept_bonus: float = 0.1,
+        neg_agreement_scale: float = 10.0,
+        nav_step_penalty: float = 0.01,
+        nav_arrival_scale: float = 10.0,
+        nav_team_scale: float = 50.0,
         **kwargs: Any,
     ):
         super().__init__()
@@ -90,6 +96,14 @@ class GridNegotiationGymEnv(gym.Env):
             grid_size=grid_size,
         )
         self._max_bfs_dist = float(grid_size * grid_size)
+        self._shaping_gamma = shaping_gamma
+        self._neg_suggest_bonus = neg_suggest_bonus
+        self._neg_persist_bonus = neg_persist_bonus
+        self._neg_accept_bonus = neg_accept_bonus
+        self._neg_agreement_scale = neg_agreement_scale
+        self._nav_step_penalty = nav_step_penalty
+        self._nav_arrival_scale = nav_arrival_scale
+        self._nav_team_scale = nav_team_scale
 
         self.n_agents = NUM_AGENTS
 
@@ -186,18 +200,18 @@ class GridNegotiationGymEnv(gym.Env):
                 suggested_poi = act - ACT_SUGGEST_BASE
 
                 if suggested_poi == int(np.argmax(my_scores)):
-                    rewards[agent_idx] += 0.1
+                    rewards[agent_idx] += self._neg_suggest_bonus
 
                 if peer in prev_suggestions:
                     peer_suggested = prev_suggestions[peer]
                     if (my_scores[peer_suggested] < 0.4
                             and my_scores[suggested_poi] > my_scores[peer_suggested]):
-                        rewards[agent_idx] += 0.05
+                        rewards[agent_idx] += self._neg_persist_bonus
 
             elif act == ACT_ACCEPT and peer in prev_suggestions:
                 peer_suggested = prev_suggestions[peer]
                 if my_scores[peer_suggested] >= 0.6:
-                    rewards[agent_idx] += 0.1
+                    rewards[agent_idx] += self._neg_accept_bonus
 
             just_agreed = (
                 self._agreed_poi is None and self._env.agreed_poi is not None
@@ -209,7 +223,7 @@ class GridNegotiationGymEnv(gym.Env):
                 )
                 self._agreement_quality = quality
                 for i in range(self.n_agents):
-                    rewards[i] += quality * 10.0
+                    rewards[i] += quality * self._neg_agreement_scale
 
                 target = self._env.poi_positions[self._agreed_poi]
                 self._target_bfs = bfs_distances(target, self._env.obstacle_map)
@@ -234,19 +248,19 @@ class GridNegotiationGymEnv(gym.Env):
                 cur_phi = _potential(cur_pos, self._target_bfs, self._max_bfs_dist)
                 prev_phi = self._prev_potentials.get(a, cur_phi)
 
-                rewards[i] += _SHAPING_GAMMA * cur_phi - prev_phi
+                rewards[i] += self._shaping_gamma * cur_phi - prev_phi
                 self._prev_potentials[a] = cur_phi
 
-                rewards[i] -= 0.01
+                rewards[i] -= self._nav_step_penalty
 
                 if self._env.agents_reached.get(a, False) and not self._individual_arrived[a]:
                     self._individual_arrived[a] = True
-                    rewards[i] += quality * 10.0
+                    rewards[i] += quality * self._nav_arrival_scale
 
             all_reached = all(self._env.agents_reached[a] for a in agents)
             if all_reached:
                 for i in range(self.n_agents):
-                    rewards[i] += quality * 50.0
+                    rewards[i] += quality * self._nav_team_scale
 
         done = all(terminated_d[a] for a in agents)
         truncated = all(truncated_d[a] for a in agents)

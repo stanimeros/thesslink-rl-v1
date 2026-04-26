@@ -22,13 +22,6 @@ from ...environments.v3 import (
 )
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
-_NEG_SUGGEST_BONUS = 0.03
-_NEG_ACCEPT_BONUS = 0.0
-_NEG_ACCEPT_THRESHOLD = 0.6
-_NEG_OPTIMAL_AGREEMENT_BONUS = 18.0
-_NEG_SUBOPTIMAL_AGREEMENT_BONUS = 2.0
-_NEG_WRONG_AGREEMENT_PENALTY = -2.0
-_NEG_TIMEOUT_PENALTY = -2.0
 
 
 class GridNegotiationGymEnv(gym.Env):
@@ -43,6 +36,13 @@ class GridNegotiationGymEnv(gym.Env):
         render_mode: str | None = None,
         seed: int = 0,
         grid_size: int = GRID_SIZE,
+        suggest_bonus: float = 0.03,
+        accept_bonus: float = 0.0,
+        accept_threshold: float = 0.6,
+        optimal_agreement_bonus: float = 18.0,
+        suboptimal_agreement_bonus: float = 2.0,
+        wrong_agreement_penalty: float = -2.0,
+        timeout_penalty: float = -2.0,
         **kwargs: Any,
     ):
         super().__init__()
@@ -57,6 +57,13 @@ class GridNegotiationGymEnv(gym.Env):
             seed=seed,
             grid_size=grid_size,
         )
+        self._suggest_bonus = suggest_bonus
+        self._accept_bonus = accept_bonus
+        self._accept_threshold = accept_threshold
+        self._optimal_agreement_bonus = optimal_agreement_bonus
+        self._suboptimal_agreement_bonus = suboptimal_agreement_bonus
+        self._wrong_agreement_penalty = wrong_agreement_penalty
+        self._timeout_penalty = timeout_penalty
         self.n_agents = NUM_AGENTS
         self.action_space = spaces.Tuple(
             tuple(spaces.Discrete(ACTION_DIM) for _ in range(self.n_agents))
@@ -128,11 +135,11 @@ class GridNegotiationGymEnv(gym.Env):
             if ACT_SUGGEST_BASE <= act < ACT_SUGGEST_BASE + NUM_SUGGEST_ACTIONS:
                 suggested = act - ACT_SUGGEST_BASE
                 if suggested == int(np.argmax(my_scores)):
-                    rewards[idx] += _NEG_SUGGEST_BONUS
+                    rewards[idx] += self._suggest_bonus
             elif act == ACT_ACCEPT and peer in prev_suggestions:
                 peer_suggested = prev_suggestions[peer]
-                if my_scores[peer_suggested] >= _NEG_ACCEPT_THRESHOLD:
-                    rewards[idx] += _NEG_ACCEPT_BONUS
+                if my_scores[peer_suggested] >= self._accept_threshold:
+                    rewards[idx] += self._accept_bonus
 
         if self._agreed_poi is None and self._env.agreed_poi is not None:
             self._agreed_poi = self._env.agreed_poi
@@ -141,16 +148,16 @@ class GridNegotiationGymEnv(gym.Env):
             agreed_optimal_now = self._agreed_poi == self._optimal_poi
             for i in range(self.n_agents):
                 if agreed_optimal_now:
-                    rewards[i] += quality * _NEG_OPTIMAL_AGREEMENT_BONUS
+                    rewards[i] += quality * self._optimal_agreement_bonus
                 else:
-                    rewards[i] += quality * _NEG_SUBOPTIMAL_AGREEMENT_BONUS
-                    rewards[i] += _NEG_WRONG_AGREEMENT_PENALTY
+                    rewards[i] += quality * self._suboptimal_agreement_bonus
+                    rewards[i] += self._wrong_agreement_penalty
 
         done = self._env.agreed_poi is not None
         truncated = all(truncated_d[a] for a in agents)
         if truncated and not done:
             for i in range(self.n_agents):
-                rewards[i] += _NEG_TIMEOUT_PENALTY
+                rewards[i] += self._timeout_penalty
         agreed_optimal = done and (self._agreed_poi == self._optimal_poi)
         info: dict[str, Any] = {
             "battle_won": float(done),

@@ -1,10 +1,14 @@
 env: "gymma"
 
 env_args:
-  key: "thesslink_rl:thesslink/ThessLink-e3-neg-v7-g32"
-  time_limit: 32
+  key: "thesslink_rl:thesslink/ThessLink-e3-w3-neg-v1-g32"
+  time_limit: 480
   pretrained_wrapper: null
   grid_size: 32
+  suggest_bonus: 0.05
+  accept_bonus: 0.05
+  accept_threshold: 0.6
+  agreement_scale: 10.0
 
 common_reward: true
 

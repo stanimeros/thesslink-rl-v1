@@ -1,4 +1,4 @@
-"""Navigation-only wrapper — environment v3, reward shaping v3."""
+"""Navigation-only wrapper — environment v3, reward shaping w3 (wrapper 3)."""
 
 from __future__ import annotations
 
@@ -13,28 +13,42 @@ from ...evaluation import AgentConfig, bfs_distances, compute_poi_scores, negoti
 from ...environments.v3 import ACTION_DIM, GRID_SIZE, NUM_AGENTS, NUM_POIS, OBS_FLAT_SIZE, GridNegotiationEnv
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
-_SHAPING_GAMMA = 0.99
-_MAX_BFS_DIST = float(GRID_SIZE * GRID_SIZE)
-_NAV_STEP_PENALTY = -0.01
-_NAV_ARRIVAL_SCALE = 6.0
-_NAV_TEAM_SCALE = 20.0
 
 
-def _potential(pos: tuple[int, int], bfs_grid: np.ndarray) -> float:
+def _potential(pos: tuple[int, int], bfs_grid: np.ndarray, max_bfs_dist: float) -> float:
     d = bfs_grid[pos[0], pos[1]]
-    return -1.0 if np.isinf(d) else -d / _MAX_BFS_DIST
+    return -1.0 if np.isinf(d) else -d / max_bfs_dist
 
 
 class GridNegotiationGymEnv(gym.Env):
     metadata = {"render_modes": ["human"], "render_fps": 5}
 
-    def __init__(self, agent0_config=None, agent1_config=None, render_mode=None, seed=0, **kwargs: Any):
+    def __init__(
+        self,
+        agent0_config=None,
+        agent1_config=None,
+        render_mode=None,
+        seed=0,
+        grid_size: int = GRID_SIZE,
+        shaping_gamma: float = 0.99,
+        step_penalty: float = -0.01,
+        arrival_scale: float = 6.0,
+        team_scale: float = 20.0,
+        timeout_penalty: float = -2.0,
+        **kwargs: Any,
+    ):
         super().__init__()
         default_models = _PACKAGE_DIR / "models"
         cfg_0 = AgentConfig.from_yaml(agent0_config or str(default_models / "human.yaml"))
         cfg_1 = AgentConfig.from_yaml(agent1_config or str(default_models / "taxi.yaml"))
         self._agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
-        self._env = GridNegotiationEnv(agent_configs=self._agent_configs, render_mode=render_mode, seed=seed)
+        self._env = GridNegotiationEnv(agent_configs=self._agent_configs, render_mode=render_mode, seed=seed, grid_size=grid_size)
+        self._max_bfs_dist = float(grid_size * grid_size)
+        self._shaping_gamma = shaping_gamma
+        self._step_penalty = step_penalty
+        self._arrival_scale = arrival_scale
+        self._team_scale = team_scale
+        self._timeout_penalty = timeout_penalty
         self.n_agents = NUM_AGENTS
         self.action_space = spaces.Tuple(tuple(spaces.Discrete(ACTION_DIM) for _ in range(self.n_agents)))
         self.observation_space = spaces.Tuple(
@@ -73,9 +87,9 @@ class GridNegotiationGymEnv(gym.Env):
         self._nav_steps = 0
         for a in agents:
             pos = tuple(self._env.agent_positions[a])
-            self._prev_potentials[a] = _potential(pos, self._target_bfs)
+            self._prev_potentials[a] = _potential(pos, self._target_bfs, self._max_bfs_dist)
             d = self._target_bfs[pos[0], pos[1]]
-            self._initial_dist[a] = float(d) if np.isfinite(d) else _MAX_BFS_DIST
+            self._initial_dist[a] = float(d) if np.isfinite(d) else self._max_bfs_dist
         obs_tuple = tuple(self._env._get_obs(a) for a in agents)
         return obs_tuple, {"agreed_poi": int(self._agreed_poi), "optimal_poi": int(self._optimal_poi)}
 
@@ -90,19 +104,22 @@ class GridNegotiationGymEnv(gym.Env):
             if self._individual_arrived.get(a, False):
                 continue
             cur_pos = tuple(self._env.agent_positions[a])
-            cur_phi = _potential(cur_pos, self._target_bfs)
-            rewards[i] += _SHAPING_GAMMA * cur_phi - self._prev_potentials.get(a, cur_phi)
+            cur_phi = _potential(cur_pos, self._target_bfs, self._max_bfs_dist)
+            rewards[i] += self._shaping_gamma * cur_phi - self._prev_potentials.get(a, cur_phi)
             self._prev_potentials[a] = cur_phi
-            rewards[i] += _NAV_STEP_PENALTY
+            rewards[i] += self._step_penalty
             if self._env.agents_reached.get(a, False):
                 self._individual_arrived[a] = True
-                rewards[i] += quality * _NAV_ARRIVAL_SCALE
+                rewards[i] += quality * self._arrival_scale
         all_reached = all(self._env.agents_reached[a] for a in agents)
         if all_reached:
             for i in range(self.n_agents):
-                rewards[i] += quality * _NAV_TEAM_SCALE
+                rewards[i] += quality * self._team_scale
         done = all(terminated_d[a] for a in agents)
         truncated = all(truncated_d[a] for a in agents)
+        if truncated and not all_reached:
+            for i in range(self.n_agents):
+                rewards[i] += self._timeout_penalty
         mean_opt = sum(self._initial_dist[a] for a in agents) / self.n_agents
         nav_eff = min(1.0, mean_opt / self._nav_steps) if (all_reached and self._nav_steps > 0) else 0.0
         info: dict[str, Any] = {

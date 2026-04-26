@@ -3,36 +3,27 @@
 from gymnasium.envs.registration import register
 
 # ── Legacy full-episode envs (e0/e1/e2, g10 default grid) ────────────────────
-register(id="thesslink/ThessLink-e0-full-v0-g10", entry_point="thesslink_rl.wrappers.full.v0:GridNegotiationGymEnv")
-register(id="thesslink/ThessLink-e1-full-v1-g10", entry_point="thesslink_rl.wrappers.full.v1:GridNegotiationGymEnv")
-register(id="thesslink/ThessLink-e2-full-v2-g10", entry_point="thesslink_rl.wrappers.full.v2:GridNegotiationGymEnv")
-register(id="thesslink/ThessLink-e2-full-v2-g32", entry_point="thesslink_rl.wrappers.full.v2:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+register(id="thesslink/ThessLink-e0-w0-full-v1-g10", entry_point="thesslink_rl.wrappers.full.v0:GridNegotiationGymEnv")
+register(id="thesslink/ThessLink-e1-w1-full-v1-g10", entry_point="thesslink_rl.wrappers.full.v1:GridNegotiationGymEnv")
+register(id="thesslink/ThessLink-e2-w2-full-v1-g10", entry_point="thesslink_rl.wrappers.full.v2:GridNegotiationGymEnv")
+register(id="thesslink/ThessLink-e2-w2-full-v1-g32", entry_point="thesslink_rl.wrappers.full.v2:GridNegotiationGymEnv", kwargs={"grid_size": 32})
 
-# ── Environment v3 — negotiation-only wrappers ────────────────────────────────
-register(id="thesslink/ThessLink-e3-neg-v3", entry_point="thesslink_rl.wrappers.neg.v3:GridNegotiationGymEnv")
-register(id="thesslink/ThessLink-e3-neg-v4", entry_point="thesslink_rl.wrappers.neg.v4:GridNegotiationGymEnv")
-register(id="thesslink/ThessLink-e3-neg-v6", entry_point="thesslink_rl.wrappers.neg.v6:GridNegotiationGymEnv")
+# ── Environment v3 — negotiation-only wrappers (w3/w4/w5) ────────────────────
+register(id="thesslink/ThessLink-e3-w3-neg-v1", entry_point="thesslink_rl.wrappers.neg.v3:GridNegotiationGymEnv")
+register(id="thesslink/ThessLink-e3-w4-neg-v1", entry_point="thesslink_rl.wrappers.neg.v4:GridNegotiationGymEnv")
+register(id="thesslink/ThessLink-e3-w5-neg-v1", entry_point="thesslink_rl.wrappers.neg.v5:GridNegotiationGymEnv")
+register(id="thesslink/ThessLink-e3-w5-neg-v2", entry_point="thesslink_rl.wrappers.neg.v5:GridNegotiationGymEnv")
 
-register(id="thesslink/ThessLink-e3-neg-v3-g32", entry_point="thesslink_rl.wrappers.neg.v3:GridNegotiationGymEnv", kwargs={"grid_size": 32})
-register(id="thesslink/ThessLink-e3-neg-v4-g32", entry_point="thesslink_rl.wrappers.neg.v4:GridNegotiationGymEnv", kwargs={"grid_size": 32})
-register(id="thesslink/ThessLink-e3-neg-v6-g32", entry_point="thesslink_rl.wrappers.neg.v6:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+register(id="thesslink/ThessLink-e3-w3-neg-v1-g32", entry_point="thesslink_rl.wrappers.neg.v3:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+register(id="thesslink/ThessLink-e3-w4-neg-v1-g32", entry_point="thesslink_rl.wrappers.neg.v4:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+register(id="thesslink/ThessLink-e3-w5-neg-v1-g32", entry_point="thesslink_rl.wrappers.neg.v5:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+register(id="thesslink/ThessLink-e3-w5-neg-v2-g32", entry_point="thesslink_rl.wrappers.neg.v5:GridNegotiationGymEnv", kwargs={"grid_size": 32})
 
-# ── Environment v3 — navigation-only wrappers ─────────────────────────────────
-register(id="thesslink/ThessLink-e3-nav-v3", entry_point="thesslink_rl.wrappers.nav.v3:GridNegotiationGymEnv")
-register(id="thesslink/ThessLink-e3-nav-v4", entry_point="thesslink_rl.wrappers.nav.v4:GridNegotiationGymEnv")
-register(id="thesslink/ThessLink-e3-nav-v6", entry_point="thesslink_rl.wrappers.nav.v6:GridNegotiationGymEnv")
+# ── Environment v3 — navigation-only wrappers (w3/w4/w5) ─────────────────────
+register(id="thesslink/ThessLink-e3-w3-nav-v1", entry_point="thesslink_rl.wrappers.nav.v3:GridNegotiationGymEnv")
+register(id="thesslink/ThessLink-e3-w4-nav-v1", entry_point="thesslink_rl.wrappers.nav.v4:GridNegotiationGymEnv")
+register(id="thesslink/ThessLink-e3-w5-nav-v1", entry_point="thesslink_rl.wrappers.nav.v5:GridNegotiationGymEnv")
 
-register(id="thesslink/ThessLink-e3-nav-v3-g32", entry_point="thesslink_rl.wrappers.nav.v3:GridNegotiationGymEnv", kwargs={"grid_size": 32})
-register(id="thesslink/ThessLink-e3-nav-v4-g32", entry_point="thesslink_rl.wrappers.nav.v4:GridNegotiationGymEnv", kwargs={"grid_size": 32})
-register(id="thesslink/ThessLink-e3-nav-v6-g32", entry_point="thesslink_rl.wrappers.nav.v6:GridNegotiationGymEnv", kwargs={"grid_size": 32})
-
-# ── Environment v3 — full two-phase wrappers ──────────────────────────────────
-register(id="thesslink/ThessLink-e3-full-v5", entry_point="thesslink_rl.wrappers.full.v5:GridNegotiationGymEnv")
-register(id="thesslink/ThessLink-e3-full-v5-g32", entry_point="thesslink_rl.wrappers.full.v5:GridNegotiationGymEnv", kwargs={"grid_size": 32})
-
-# ── v7 wrappers — improved rewards; both on env-v3 ───────────────────────────
-register(id="thesslink/ThessLink-e3-neg-v7", entry_point="thesslink_rl.wrappers.neg.v7:GridNegotiationGymEnv")
-register(id="thesslink/ThessLink-e3-neg-v7-g32", entry_point="thesslink_rl.wrappers.neg.v7:GridNegotiationGymEnv", kwargs={"grid_size": 32})
-
-register(id="thesslink/ThessLink-e3-nav-v7", entry_point="thesslink_rl.wrappers.nav.v7:GridNegotiationGymEnv")
-register(id="thesslink/ThessLink-e3-nav-v7-g32", entry_point="thesslink_rl.wrappers.nav.v7:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+register(id="thesslink/ThessLink-e3-w3-nav-v1-g32", entry_point="thesslink_rl.wrappers.nav.v3:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+register(id="thesslink/ThessLink-e3-w4-nav-v1-g32", entry_point="thesslink_rl.wrappers.nav.v4:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+register(id="thesslink/ThessLink-e3-w5-nav-v1-g32", entry_point="thesslink_rl.wrappers.nav.v5:GridNegotiationGymEnv", kwargs={"grid_size": 32})

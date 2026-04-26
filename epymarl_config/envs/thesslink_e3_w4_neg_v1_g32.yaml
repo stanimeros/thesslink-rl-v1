@@ -1,0 +1,21 @@
+env: "gymma"
+
+env_args:
+  key: "thesslink_rl:thesslink/ThessLink-e3-w4-neg-v1-g32"
+  time_limit: 480
+  pretrained_wrapper: null
+  grid_size: 32
+  suggest_bonus: 0.03
+  accept_bonus: 0.0
+  accept_threshold: 0.6
+  optimal_agreement_bonus: 18.0
+  suboptimal_agreement_bonus: 2.0
+  wrong_agreement_penalty: -2.0
+  timeout_penalty: -2.0
+
+common_reward: true
+
+test_greedy: True
+test_nepisode: 32
+runner_log_interval: 20000
+learner_log_interval: 20000

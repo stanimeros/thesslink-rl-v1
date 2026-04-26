@@ -48,6 +48,10 @@ class GridNegotiationGymEnv(gym.Env):
         agent1_config: str | None = None,
         render_mode: str | None = None,
         seed: int = 0,
+        neg_agreement_scale: float = 5.0,
+        nav_shaping_scale: float = 0.05,
+        nav_step_penalty: float = 0.01,
+        nav_team_scale: float = 20.0,
         **kwargs: Any,
     ):
         super().__init__()
@@ -80,6 +84,10 @@ class GridNegotiationGymEnv(gym.Env):
             )
         )
 
+        self._neg_agreement_scale = neg_agreement_scale
+        self._nav_shaping_scale = nav_shaping_scale
+        self._nav_step_penalty = nav_step_penalty
+        self._nav_team_scale = nav_team_scale
         self._poi_scores: Dict[str, np.ndarray] = {}
         self._agreed_poi: int | None = None
         self._optimal_poi: int = 0
@@ -171,7 +179,7 @@ class GridNegotiationGymEnv(gym.Env):
                 self._agreed_poi, self._poi_scores, agents,
             )
             self._agreement_quality = quality
-            rewards = [quality * 5.0] * self.n_agents
+            rewards = [quality * self._neg_agreement_scale] * self.n_agents
             for a in agents:
                 self._prev_dist[a] = self._bfs_dist_to_target(a)
             target = self._env.poi_positions[self._agreed_poi]
@@ -188,11 +196,11 @@ class GridNegotiationGymEnv(gym.Env):
             for i, a in enumerate(agents):
                 new_dist = self._bfs_dist_to_target(a)
                 old_dist = self._prev_dist.get(a, new_dist)
-                rewards[i] += (old_dist - new_dist) * 0.05
+                rewards[i] += (old_dist - new_dist) * self._nav_shaping_scale
                 self._prev_dist[a] = new_dist
 
             for i in range(self.n_agents):
-                rewards[i] -= 0.01
+                rewards[i] -= self._nav_step_penalty
 
             for i, a in enumerate(agents):
                 if self._env.agents_reached.get(a, False) and not self._individual_arrived.get(a, False):
@@ -203,7 +211,7 @@ class GridNegotiationGymEnv(gym.Env):
                 quality = negotiation_quality(
                     self._agreed_poi, self._poi_scores, agents,
                 )
-                rewards = [quality * 20.0] * self.n_agents
+                rewards = [quality * self._nav_team_scale] * self.n_agents
 
         done = all(terminated_d[a] for a in agents)
         truncated = all(truncated_d[a] for a in agents)

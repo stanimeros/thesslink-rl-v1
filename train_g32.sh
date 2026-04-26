@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ThessLink RL — v7 g32 training launcher.
+# ThessLink RL — w5 g32 training launcher.
 # Runs: setup → smoke test (neg + nav) → clear → launch all algos in parallel.
 #
 # Usage:
@@ -39,8 +39,8 @@ LOGS_ROOT="$RESULTS_DIR_ABS/logs"
 EPYMARL_SRC="epymarl/src"
 VENV=".venv/bin/activate"
 
-NEG_ENV="thesslink_e3_neg_v7_g32"
-NAV_ENV="thesslink_e3_nav_v7_g32"
+NEG_ENV="thesslink_e3_w5_neg_v2_g32"
+NAV_ENV="thesslink_e3_w5_nav_v1_g32"
 
 WANDB_ENTITY_VAL="${WANDB_ENTITY:-aid26006-university-of-macedonia}"
 WANDB_PROJECT_VAL="${WANDB_PROJECT:-thesslink-rl}"

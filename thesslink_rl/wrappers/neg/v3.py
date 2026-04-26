@@ -21,10 +21,6 @@ from ...environments.v3 import (
 )
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
-_NEG_SUGGEST_BONUS = 0.05
-_NEG_ACCEPT_BONUS = 0.05
-_NEG_ACCEPT_THRESHOLD = 0.6
-_NEG_AGREEMENT_SCALE = 10.0
 
 
 class GridNegotiationGymEnv(gym.Env):
@@ -36,6 +32,10 @@ class GridNegotiationGymEnv(gym.Env):
         agent1_config: str | None = None,
         render_mode: str | None = None,
         seed: int = 0,
+        suggest_bonus: float = 0.05,
+        accept_bonus: float = 0.05,
+        accept_threshold: float = 0.6,
+        agreement_scale: float = 10.0,
         **kwargs: Any,
     ):
         super().__init__()
@@ -44,6 +44,10 @@ class GridNegotiationGymEnv(gym.Env):
         cfg_1 = AgentConfig.from_yaml(agent1_config or str(default_models / "taxi.yaml"))
         self._agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
         self._env = GridNegotiationEnv(agent_configs=self._agent_configs, render_mode=render_mode, seed=seed)
+        self._suggest_bonus = suggest_bonus
+        self._accept_bonus = accept_bonus
+        self._accept_threshold = accept_threshold
+        self._agreement_scale = agreement_scale
         self.n_agents = NUM_AGENTS
         self.action_space = spaces.Tuple(tuple(spaces.Discrete(ACTION_DIM) for _ in range(self.n_agents)))
         self.observation_space = spaces.Tuple(
@@ -89,17 +93,17 @@ class GridNegotiationGymEnv(gym.Env):
             my_scores = self._poi_scores[active]
             if ACT_SUGGEST_BASE <= act < ACT_SUGGEST_BASE + NUM_SUGGEST_ACTIONS:
                 if act - ACT_SUGGEST_BASE == int(np.argmax(my_scores)):
-                    rewards[idx] += _NEG_SUGGEST_BONUS
+                    rewards[idx] += self._suggest_bonus
             elif act == ACT_ACCEPT and peer in prev_suggestions:
-                if my_scores[prev_suggestions[peer]] >= _NEG_ACCEPT_THRESHOLD:
-                    rewards[idx] += _NEG_ACCEPT_BONUS
+                if my_scores[prev_suggestions[peer]] >= self._accept_threshold:
+                    rewards[idx] += self._accept_bonus
 
         if self._agreed_poi is None and self._env.agreed_poi is not None:
             self._agreed_poi = self._env.agreed_poi
             quality = negotiation_quality(self._agreed_poi, self._poi_scores, agents)
             self._agreement_quality = quality
             for i in range(self.n_agents):
-                rewards[i] += quality * _NEG_AGREEMENT_SCALE
+                rewards[i] += quality * self._agreement_scale
 
         done = self._env.agreed_poi is not None
         truncated = all(truncated_d[a] for a in agents)
