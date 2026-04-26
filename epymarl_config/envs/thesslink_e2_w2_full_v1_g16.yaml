@@ -1,7 +1,7 @@
 env: "gymma"
 
 env_args:
-  key: "thesslink_rl:thesslink/ThessLink-e2-w2-full-v1-g10"
+  key: "thesslink_rl:thesslink/ThessLink-e2-w2-full-v1-g16"
   time_limit: 120
   pretrained_wrapper: null
   shaping_gamma: 0.99

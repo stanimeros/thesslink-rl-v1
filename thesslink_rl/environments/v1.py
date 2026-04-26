@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 import numpy as np
 
 ENV_TAG = "v1"
-GRID_SIZE = 10
+GRID_SIZE = 16
 NUM_OBSTACLES = 10
 NUM_POIS = 3
 NUM_AGENTS = 2

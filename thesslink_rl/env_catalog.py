@@ -23,7 +23,7 @@ def _parse_env_key(yaml_path: Path) -> str | None:
 
 
 def _parse_env_grid_size(yaml_path: Path) -> int:
-    """Parse grid_size from env_args block; returns 10 if not present."""
+    """Parse grid_size from env_args block; returns 16 if not present."""
     try:
         in_env_args = False
         for line in yaml_path.read_text().splitlines():

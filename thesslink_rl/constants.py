@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-GRID_SIZE = 10
+GRID_SIZE = 16
 NUM_POIS = 3
 
 PACKAGE_ROOT = Path(__file__).resolve().parent

@@ -22,8 +22,8 @@ from typing import Dict, List, Optional
 import numpy as np
 
 ENV_TAG = "v3"
-GRID_SIZE = 10
-NUM_OBSTACLES = 10  # default for GRID_SIZE=10 (10% density)
+GRID_SIZE = 16
+NUM_OBSTACLES = 25  # default for GRID_SIZE=16 (10% density)
 NUM_POIS = 3
 NUM_AGENTS = 2
 

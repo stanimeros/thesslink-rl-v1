@@ -35,4 +35,4 @@ else:
 
 ENV_CONFIG = ENV_SELECTOR
 ENV_TAG = ENV_LABEL if re.fullmatch(r"v\d+_.+", ENV_LABEL) else f"v{_BASE_VERSION}"
-ENV_GRID_SIZE: int = _choice.get("grid_size", 10)
+ENV_GRID_SIZE: int = _choice.get("grid_size", 16)

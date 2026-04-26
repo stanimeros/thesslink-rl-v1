@@ -2,10 +2,10 @@
 
 from gymnasium.envs.registration import register
 
-# ── Legacy full-episode envs (e0/e1/e2, g10 default grid) ────────────────────
-register(id="thesslink/ThessLink-e0-w0-full-v1-g10", entry_point="thesslink_rl.wrappers.full.v0:GridNegotiationGymEnv")
-register(id="thesslink/ThessLink-e1-w1-full-v1-g10", entry_point="thesslink_rl.wrappers.full.v1:GridNegotiationGymEnv")
-register(id="thesslink/ThessLink-e2-w2-full-v1-g10", entry_point="thesslink_rl.wrappers.full.v2:GridNegotiationGymEnv")
+# ── Legacy full-episode envs (e0/e1/e2, g16 default grid) ────────────────────
+register(id="thesslink/ThessLink-e0-w0-full-v1-g16", entry_point="thesslink_rl.wrappers.full.v0:GridNegotiationGymEnv")
+register(id="thesslink/ThessLink-e1-w1-full-v1-g16", entry_point="thesslink_rl.wrappers.full.v1:GridNegotiationGymEnv")
+register(id="thesslink/ThessLink-e2-w2-full-v1-g16", entry_point="thesslink_rl.wrappers.full.v2:GridNegotiationGymEnv")
 register(id="thesslink/ThessLink-e2-w2-full-v1-g32", entry_point="thesslink_rl.wrappers.full.v2:GridNegotiationGymEnv", kwargs={"grid_size": 32})
 
 # ── Environment v3 — negotiation-only wrappers (w3/w4/w5) ────────────────────
