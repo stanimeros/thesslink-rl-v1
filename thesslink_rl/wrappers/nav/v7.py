@@ -63,7 +63,6 @@ _PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
 _SHAPING_GAMMA = 0.99
 _NAV_STEP_PENALTY = -0.001      # small: BFS shaping dominates
 _NAV_ARRIVAL_SCALE = 25.0       # raised from 10.0; compensates for no team bonus
-_NAV_TEAM_SCALE = 0.0           # removed: avoids cross-agent credit-assignment issues
 _NAV_TIMEOUT_PENALTY = -8.0     # per-agent, only for agents who did not arrive
 _NAV_FIRST_ARRIVAL_BONUS = 5.0  # milestone for first agent to reach the target
 
