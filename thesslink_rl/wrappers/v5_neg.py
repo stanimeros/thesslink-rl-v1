@@ -40,7 +40,7 @@ from ..environments.v3 import (
     GridNegotiationEnv,
 )
 
-_PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
+_PACKAGE_DIR = Path(__file__).resolve().parent.parent
 
 
 class GridNegotiationGymEnv(gym.Env):

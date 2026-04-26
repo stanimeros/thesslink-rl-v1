@@ -34,7 +34,7 @@ from ..evaluation import (
     optimal_poi,
 )
 
-_PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
+_PACKAGE_DIR = Path(__file__).resolve().parent.parent
 
 
 class GridNegotiationGymEnv(gym.Env):

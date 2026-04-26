@@ -59,7 +59,7 @@ from ..environments.v3 import (
     GridNegotiationEnv,
 )
 
-_PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
+_PACKAGE_DIR = Path(__file__).resolve().parent.parent
 
 
 def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray, max_bfs_dist: float) -> float:

@@ -42,7 +42,7 @@ from ..environments.v3 import (
     GridNegotiationEnv,
 )
 
-_PACKAGE_DIR = Path(__file__).resolve().parent.parent.parent
+_PACKAGE_DIR = Path(__file__).resolve().parent.parent
 _MILESTONES = (0.5, 0.75)
 
 
