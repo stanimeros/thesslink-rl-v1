@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke test: short training for all algorithms (IQL, QMIX, VDN, MAPPO, COMA) + plots.
+"""Smoke test: short training for all algorithms (IQL, QMIX, VDN, MAPPO, COMA).
 
 Usage:
     source .venv/bin/activate
@@ -16,9 +16,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-
-import matplotlib
-matplotlib.use("Agg")
 
 from thesslink_rl.env_catalog import prompt_help, resolve_env_choice, sacred_path_variants
 
@@ -44,17 +41,14 @@ def _ensure_env_selector_for_smoke() -> None:
 
 _ensure_env_selector_for_smoke()
 
-from config import ENV_CONFIG, ENV_SACRED_MARKER, ENV_SELECTOR, ENV_TAG, GridNegotiationEnv
+from config import ENV_CONFIG, ENV_SACRED_MARKER, ENV_SELECTOR
 from thesslink_rl.constants import (
-    AGENT_CONFIG_YAMLS,
     EPYMARL_DIR,
     EPYMARL_SRC,
-    PLOTS_DIR,
     PROJECT_ROOT,
     TRAINING_ALGOS,
     epymarl_common_reward_cli_flag,
 )
-from thesslink_rl.visualization import _make_filename
 
 T_MAX = 1000
 LOG_INTERVAL = 50
@@ -185,94 +179,6 @@ def print_results_table(metrics: dict, *, algo: str):
         print(f"\nOther logged metrics: {', '.join(other_keys)}")
 
 
-def generate_plots(metrics: dict, algo: str):
-    """Generate the same 3 plots the project already has."""
-    from thesslink_rl.evaluation import AgentConfig, compute_poi_scores
-    from thesslink_rl.visualization import (
-        plot_training_curves,
-        random_episode_frames,
-        render_eval_heatmaps,
-        replay_episode,
-    )
-
-    print(f"\n{'='*60}")
-    print(f"STEP 3 — Plots ({algo.upper()})")
-    print(f"{'='*60}")
-
-    # --- 3a. Training curves from Sacred metrics ---
-    from thesslink_rl.checkpoints import test_reward_series
-
-    steps_arr, vals_arr = test_reward_series(metrics)
-    steps = steps_arr.tolist() if steps_arr.size else []
-    gm_vals = vals_arr.tolist() if vals_arr.size else []
-    neg_vals = metrics.get("test_negotiation_agreed_mean", {}).get("values", [])
-    reached_vals = metrics.get("test_battle_won_mean", {}).get("values", [])
-    epl_vals = metrics.get("test_ep_length_mean", {}).get("values", [])
-
-    stats = {
-        "common_reward": gm_vals,
-        "negotiate": [v * 100.0 for v in neg_vals],
-        "reach": [v * 100.0 for v in reached_vals],
-        "ep_len": epl_vals,
-    }
-    fname = _make_filename("training_curves", "png", algo)
-    print(f"  [1/3] Training curves...")
-    plot_training_curves(
-        stats,
-        window=min(5, max(1, len(gm_vals))),
-        algo=algo,
-        env_name=ENV_TAG,
-        timesteps=steps if steps else None,
-    )
-    print(f"         -> plots/{ENV_TAG}/{fname}")
-
-    # --- 3b. Evaluation heatmaps ---
-    cfg_0 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "human.yaml"))
-    cfg_1 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "taxi.yaml"))
-    agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
-
-    from config import ENV_GRID_SIZE
-    env = GridNegotiationEnv(agent_configs=agent_configs, seed=42, grid_size=ENV_GRID_SIZE)
-    env.reset(seed=42)
-
-    agents = env.possible_agents
-    for agent in agents:
-        spawn = tuple(env.spawn_positions[agent])
-        scores = compute_poi_scores(
-            spawn, spawn, env.poi_positions, env.obstacle_map,
-            agent_configs[agent],
-        )
-        env.poi_scores[agent] = scores
-
-    fname = _make_filename("eval_heatmaps", "png", algo)
-    print(f"  [2/3] Evaluation heatmaps...")
-    render_eval_heatmaps(env, agent_configs, algo=algo, env_name=ENV_TAG)
-    print(f"         -> plots/{ENV_TAG}/{fname}")
-
-    # --- 3c. Episode replay GIF (random-action demo, same env/map) ---
-    env.reset(seed=42)
-    for agent in agents:
-        spawn = tuple(env.spawn_positions[agent])
-        scores = compute_poi_scores(
-            spawn, spawn, env.poi_positions, env.obstacle_map,
-            agent_configs[agent],
-        )
-        env.poi_scores[agent] = scores
-
-    frames = random_episode_frames(env)
-
-    fname = _make_filename("episode_replay", "gif", algo)
-    print(f"  [3/3] Episode replay GIF...")
-    replay_episode(
-        frames,
-        env,
-        agent_configs=agent_configs,
-        algo=algo,
-        env_name=ENV_TAG,
-    )
-    print(f"         -> plots/{ENV_TAG}/{fname}")
-
-
 def main():
     print("ThessLink RL — Smoke Test")
     print(f"Project: {PROJECT_ROOT}")
@@ -283,18 +189,11 @@ def main():
         run_dir = run_training(algo)
         metrics = load_sacred_metrics(run_dir)
         print_results_table(metrics, algo=algo)
-        generate_plots(metrics, algo=algo)
 
-    env_plots = PLOTS_DIR / ENV_TAG
     print(f"\n{'='*60}")
     print("SMOKE TEST COMPLETE")
     print(f"{'='*60}")
-    print(f"\nResults saved in: {SMOKE_RESULTS_DIR}")
-    print(f"Plots saved in:   {env_plots}")
-    for algo in TRAINING_ALGOS:
-        print(f"  [{algo}] {_make_filename('training_curves', 'png', algo)}")
-        print(f"  [{algo}] {_make_filename('eval_heatmaps', 'png', algo)}")
-        print(f"  [{algo}] {_make_filename('episode_replay', 'gif', algo)}")
+    print(f"\nSacred / metrics under: {SMOKE_RESULTS_DIR}")
 
     models_root = SMOKE_RESULTS_DIR / "models"
     if models_root.exists():
