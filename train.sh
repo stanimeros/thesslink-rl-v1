@@ -328,6 +328,7 @@ PATCH_DIR="$SCRIPT_DIR/epymarl_config/patches"
 _PATCHES=(
   "$PATCH_DIR/epymarl_01_thesslink_base.patch"
   "$PATCH_DIR/epymarl_02_wandb_run_name.patch"
+  "$PATCH_DIR/epymarl_03_wandb_tags_group.patch"
 )
 for _p in "${_PATCHES[@]}"; do
   if [[ ! -f "$_p" ]]; then
@@ -342,7 +343,7 @@ for _patch in "${_PATCHES[@]}"; do
     exit 1
   fi
 done
-log "Patches applied (thesslink base + wandb run names)."
+log "Patches applied (thesslink base + wandb run names + wandb tags/group)."
 
 log "Copying ThessLink env YAMLs into EPyMARL (epymarl_config/envs/*.yaml)..."
 _copied=0

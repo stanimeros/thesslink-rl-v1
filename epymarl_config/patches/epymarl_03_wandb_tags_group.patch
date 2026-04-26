@@ -1,0 +1,113 @@
+diff --git a/src/utils/logging.py b/src/utils/logging.py
+--- a/src/utils/logging.py
++++ b/src/utils/logging.py
+@@ -1,7 +1,11 @@
++from __future__ import annotations
++
+ from collections import defaultdict
+ from hashlib import sha256
+ import json
+ import logging
++import os
++import re
+ 
+ import numpy as np
+ 
+@@ -21,6 +25,45 @@ def _wandb_env_tag(config):
+     return str(config.get("env", "env"))
+ 
+ 
++def _wandb_phase_tag(env_tag: str) -> str | None:
++    """Coarse phase label from ThessLink-style env tail (e.g. e3_full_v5_g32, e0-full-v0-g10)."""
++    et = env_tag.lower().replace("-", "_")
++    if "_neg_" in et or "neg_v" in et:
++        return "phase_neg"
++    if "_nav_" in et or "nav_v" in et:
++        return "phase_nav"
++    if "_full_" in et or "full_v" in et or re.match(r"^v\d", env_tag.lower()):
++        return "phase_full"
++    return None
++
++
++def _wandb_tags(config, alg_name: str, env_tag: str, config_hash: str) -> list[str]:
++    """Short filterable tags for W&B (keep each tag concise; W&B limits tag length)."""
++    tags = [
++        f"algo-{alg_name}",
++        f"env-{env_tag}",
++        f"seed-{config['seed']}",
++        f"cfg-{config_hash[-8:]}",
++    ]
++    phase = _wandb_phase_tag(env_tag)
++    if phase:
++        tags.append(phase)
++    ea = config.get("env_args") or {}
++    if isinstance(ea.get("grid_size"), (int, float)):
++        tags.append(f"grid-{int(ea['grid_size'])}")
++    if isinstance(ea.get("time_limit"), int):
++        tags.append(f"tlimit-{ea['time_limit']}")
++    # Dedupe and clamp length (W&B recommends short tags)
++    out: list[str] = []
++    seen = set()
++    for t in tags:
++        t = str(t).replace(" ", "_")[:64]
++        if t and t not in seen:
++            seen.add(t)
++            out.append(t)
++    return out
++
++
+ class Logger:
+     def __init__(self, console_logger):
+         self.console_logger = console_logger
+@@ -61,32 +104,43 @@ class Logger:
+         env_tag = _wandb_env_tag(config)
+ 
+         non_hash_keys = ["seed"]
+-        self.config_hash = sha256(
++        full_hash = sha256(
+             json.dumps(
+                 {k: v for k, v in config.items() if k not in non_hash_keys},
+                 sort_keys=True,
+             ).encode("utf8")
+-        ).hexdigest()[-10:]
++        ).hexdigest()
++        self.config_hash = full_hash[-10:]
+ 
+-        # Group by algo + short env + config fingerprint (full config in run config panel).
+-        group_name = "_".join([alg_name, env_tag, self.config_hash])
+-        # Run name: algo, short env, seed (hash stays in group for same-name disambiguation).
++        # Group: same algo + env so different seeds appear as one group in W&B (easy compare).
++        # Full hyperparameters remain in ``config``. Optional override: THESSLINK_WANDB_GROUP.
++        default_group = f"{alg_name}_{env_tag}"
++        group_name = os.environ.get("THESSLINK_WANDB_GROUP", default_group)
++        if len(group_name) > 128:
++            group_name = group_name[:128]
++
++        # Run name: algo, env tail, seed (unique per run; config hash as tag for disambiguation).
+         run_name = f"{alg_name}_{env_tag}_{config['seed']}"
+-        if len(run_name) > 80:
+-            run_name = run_name[:80]
++        if len(run_name) > 128:
++            run_name = run_name[:128]
++
++        tags = _wandb_tags(config, alg_name, env_tag, full_hash)
+ 
+         self.wandb = wandb.init(
+             entity=team_name,
+             project=project_name,
+             name=run_name,
+-            config=config,
+             group=group_name,
++            tags=tags,
++            config=config,
+             mode=mode,
+         )
+ 
+         self.console_logger.info("*******************")
+         self.console_logger.info("WANDB RUN ID:")
+         self.console_logger.info(f"{self.wandb.id}")
++        self.console_logger.info(f"WANDB group={group_name!r} name={run_name!r}")
++        self.console_logger.info(f"WANDB tags: {tags}")
+         self.console_logger.info("*******************")
+ 
+         # accumulate data at same timestep and only log in one batch once
