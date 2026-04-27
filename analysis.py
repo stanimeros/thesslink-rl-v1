@@ -36,6 +36,8 @@ NEG_METRICS = [
 
 STATE_ICON = {"running": "⟳", "finished": "✓", "crashed": "✗", "failed": "✗"}
 
+_history_cache: dict = {}
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Analyse W&B runs for a ThessLink version.")
@@ -115,6 +117,43 @@ def _fmt(v: float | None, w: int) -> str:
     return f"{v:>{w}.3f}"
 
 
+def _get_history(run, key: str, samples: int = 40) -> list:
+    """Fetch sampled metric history for a run (cached per run+key)."""
+    cache_key = (run.id, key)
+    if cache_key not in _history_cache:
+        try:
+            rows = run.history(samples=samples, keys=[key], pandas=False)
+            vals = [row[key] for row in rows if row.get(key) is not None]
+        except Exception:
+            vals = []
+        _history_cache[cache_key] = vals
+    return _history_cache[cache_key]
+
+
+def _trend_indicator(run, key: str, window_frac: float = 0.25, min_delta: float = 0.01) -> str:
+    """Single-char trend over the most recent quarter of training history.
+
+    ↑  improving  (mean of last window > mean of prior window by > min_delta)
+    ~  plateau    (change within ±min_delta)
+    ↓  declining
+    ?  not enough data
+    """
+    if key is None:
+        return "?"
+    vals = _get_history(run, key)
+    if len(vals) < 6:
+        return "?"
+    n = max(2, int(len(vals) * window_frac))
+    recent  = vals[-n:]
+    earlier = vals[-2 * n: -n]
+    if len(earlier) < 2:
+        return "?"
+    delta = sum(recent) / len(recent) - sum(earlier) / len(earlier)
+    if   delta >  min_delta: return "↑"
+    elif delta < -min_delta: return "↓"
+    else:                    return "~"
+
+
 def print_section(title: str, runs: list, metrics: list, top_n: int) -> None:
     if not runs:
         return
@@ -137,13 +176,17 @@ def print_section(title: str, runs: list, metrics: list, top_n: int) -> None:
     val_w   = 10
     algo_w  = 7
     icon_w  = 2
+    trend_w = 2
+
+    # Primary metric key for trend detection (first with a real W&B key)
+    primary_key = next((key for _, key in metrics if key is not None), None)
 
     labels = [m[0] for m in metrics]
     header = (f"  {'algo':<{algo_w}} {'run name':<{name_w}} {'progress':<{prog_w}}"
               + "".join(f"{l:>{val_w}}" for l in labels)
-              + f"  {'st':<{icon_w}}")
+              + f"  {'tr':<{trend_w}}  {'st':<{icon_w}}")
 
-    divider_w = algo_w + name_w + prog_w + val_w * len(metrics) + icon_w + 5
+    divider_w = algo_w + name_w + prog_w + val_w * len(metrics) + icon_w + trend_w + 7
     print(f"\n{'═' * divider_w}")
     print(f"  {title}")
     print(f"{'═' * divider_w}")
@@ -173,6 +216,7 @@ def print_section(title: str, runs: list, metrics: list, top_n: int) -> None:
             prog  = _progress_bar(steps, t_max)
             icon  = STATE_ICON.get(run.state, "?")
 
+            trend = _trend_indicator(run, primary_key)
             row = f"  {alabel:<{algo_w}} {run.name:<{name_w}} {prog:<{prog_w}}"
             for lbl, key in metrics:
                 if lbl == "q_on_win":
@@ -182,7 +226,7 @@ def print_section(title: str, runs: list, metrics: list, top_n: int) -> None:
                 else:
                     v = _val(run, key)
                 row += _fmt(v, val_w)
-            row += f"  {icon}"
+            row += f"  {trend:<{trend_w}}  {icon}"
             print(row)
 
         # Best row if multiple runs
