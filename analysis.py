@@ -2,10 +2,10 @@
 """Fetch and display W&B metrics for a selected ThessLink RL version.
 
 Usage:
-    python analysis.py --version v7
-    python analysis.py --version v7 --algo iql
-    python analysis.py --version v7 --metric test_return_mean
-    python analysis.py --version v7 --entity my-entity --project my-project
+    python analysis.py --version w5
+    python analysis.py --version w6 --state running
+    python analysis.py --version w6 --algo ippo
+    python analysis.py --version w6 --entity my-entity --project my-project
 """
 
 from __future__ import annotations
@@ -20,138 +20,188 @@ WANDB_PROJECT = os.environ.get("WANDB_PROJECT", "thesslink-rl")
 
 ALGOS = ("iql", "qmix", "mappo", "ippo", "maddpg")
 
-KEY_METRICS = [
-    "test_return_mean",
-    "test_total_return_mean",
-    "test_return_std",
-    "test_battle_won_mean",
-    "test_negotiation_agreed_mean",
-    "test_negotiation_quality_mean",
-    "test_negotiation_length_mean",
-    "test_navigation_quality_mean",
-    "test_navigation_length_mean",
+NAV_METRICS = [
+    ("nav_quality",  "test_navigation_quality_mean"),
+    ("q_on_win",     None),   # computed: nav_quality / battle_won
+    ("nav_length",   "test_navigation_length_mean"),
+    ("battle_won",   "test_battle_won_mean"),
 ]
+
+NEG_METRICS = [
+    ("neg_quality",  "test_negotiation_quality_mean"),
+    ("neg_agreed",   "test_negotiation_agreed_mean"),
+    ("neg_length",   "test_negotiation_length_mean"),
+    ("battle_won",   "test_battle_won_mean"),
+]
+
+STATE_ICON = {"running": "⟳", "finished": "✓", "crashed": "✗", "failed": "✗"}
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Analyse W&B runs for a ThessLink version.")
     p.add_argument("--version", "-v", required=True,
-                   help="Env version tag to filter (e.g. v7, v4_neg, v6_nav)")
+                   help="Env version tag to filter (e.g. w5, w6, v6_nav)")
     p.add_argument("--algo", "-a", default=None,
                    choices=list(ALGOS) + [a.upper() for a in ALGOS],
                    help="Restrict to a single algorithm (default: all)")
-    p.add_argument("--metric", "-m", default=None,
-                   help="Extra metric key to include in the summary")
     p.add_argument("--entity", default=WANDB_ENTITY)
     p.add_argument("--project", default=WANDB_PROJECT)
     p.add_argument("--state", default="all",
                    choices=["finished", "running", "crashed", "failed", "all"],
                    help="Run state filter (default: all)")
     p.add_argument("--top", type=int, default=0,
-                   help="Show the top-N runs per algo by test_return_mean (0 = all)")
+                   help="Show top-N runs per algo by primary metric (0 = all)")
     return p.parse_args()
 
 
-def fetch_runs(api, entity: str, project: str, version: str, algo: str | None, state: str):
-    """Return W&B runs matching the version tag and optional algo filter."""
+def fetch_runs(api, entity, project, version, algo, state):
     filters: dict = {}
     if state != "all":
         filters["state"] = state
-
     all_runs = api.runs(f"{entity}/{project}", filters=filters)
 
     matched = []
-    version_lower = version.lower()
+    vl = version.lower()
     for run in all_runs:
-        tags_lower = [t.lower() for t in (run.tags or [])]
-        group_lower = (run.group or "").lower()
-        name_lower = run.name.lower()
-        config_env = (run.config.get("env_config") or run.config.get("env", "") or "").lower()
+        tags_l      = [t.lower() for t in (run.tags or [])]
+        group_l     = (run.group or "").lower()
+        name_l      = run.name.lower()
+        config_env  = (run.config.get("env_config") or run.config.get("env", "") or "").lower()
+        combined    = " ".join([name_l, group_l, config_env] + tags_l)
 
-        version_match = (
-            version_lower in tags_lower
-            or version_lower in group_lower
-            or version_lower in name_lower
-            or version_lower in config_env
-        )
-        if not version_match:
+        if vl not in combined:
             continue
 
         if algo:
-            algo_l = algo.lower()
+            al = algo.lower()
             algo_match = (
-                algo_l in (run.config.get("name") or "").lower()
-                or algo_l in name_lower
-                or any(algo_l == t for t in tags_lower)
-                or algo_l in group_lower
+                al in (run.config.get("name") or "").lower()
+                or al in name_l
+                or any(al == t for t in tags_l)
+                or al in group_l
             )
             if not algo_match:
                 continue
 
         matched.append(run)
-
     return matched
 
 
-def summarise_runs(runs, extra_metric: str | None, top_n: int) -> None:
-    metrics_to_show = list(KEY_METRICS)
-    if extra_metric and extra_metric not in metrics_to_show:
-        metrics_to_show.append(extra_metric)
+def _detect_algo(run) -> str | None:
+    for a in ALGOS:
+        if a in (run.name or "").lower() or a in (run.group or "").lower():
+            return a
+    return None
 
+
+def _progress_bar(steps: int | None, t_max: int | None, width: int = 12) -> str:
+    if not steps or not t_max:
+        return f"{'?':^{width + 7}}"
+    pct = min(1.0, steps / t_max)
+    filled = int(round(pct * width))
+    bar = "█" * filled + "░" * (width - filled)
+    return f"[{bar}] {pct * 100:3.0f}%"
+
+
+def _val(run, key: str) -> float | None:
+    if key is None:
+        return None
+    return run.summary.get(key)
+
+
+def _fmt(v: float | None, w: int) -> str:
+    if v is None:
+        return f"{'—':>{w}}"
+    return f"{v:>{w}.3f}"
+
+
+def print_section(title: str, runs: list, metrics: list, top_n: int) -> None:
+    if not runs:
+        return
+
+    # Group by algo, sort within group by first real metric descending
     by_algo: dict[str, list] = defaultdict(list)
     ungrouped = []
-
     for run in runs:
-        detected = None
-        for algo in ALGOS:
-            if algo in (run.name or "").lower() or algo in (run.group or "").lower():
-                detected = algo
-                break
-        (by_algo[detected] if detected else ungrouped).append(run)
+        a = _detect_algo(run)
+        (by_algo[a] if a else ungrouped).append(run)
 
     groups = [(a, by_algo[a]) for a in ALGOS if by_algo[a]]
     if ungrouped:
         groups.append((None, ungrouped))
 
+    # Column widths
+    name_w  = max(len(r.name) for r in runs) + 1
+    name_w  = max(name_w, 18)
+    prog_w  = 19   # "[████████████]  99%"
+    val_w   = 10
+    algo_w  = 7
+    icon_w  = 2
+
+    labels = [m[0] for m in metrics]
+    header = (f"  {'algo':<{algo_w}} {'run name':<{name_w}} {'progress':<{prog_w}}"
+              + "".join(f"{l:>{val_w}}" for l in labels)
+              + f"  {'st':<{icon_w}}")
+
+    divider_w = algo_w + name_w + prog_w + val_w * len(metrics) + icon_w + 5
+    print(f"\n{'═' * divider_w}")
+    print(f"  {title}")
+    print(f"{'═' * divider_w}")
+    print(header)
+
     for algo_name, algo_runs in groups:
-        label = algo_name.upper() if algo_name else "UNKNOWN"
+        alabel = algo_name.upper() if algo_name else "???"
 
+        # Sort by first numeric metric (descending)
         def sort_key(r):
-            v = r.summary.get("test_return_mean") or r.summary.get("test_total_return_mean")
-            return v if v is not None else float("-inf")
+            for lbl, key in metrics:
+                if key is not None:
+                    v = _val(r, key)
+                    if v is not None:
+                        return v
+            return float("-inf")
 
-        algo_runs.sort(key=sort_key, reverse=True)
+        algo_runs = sorted(algo_runs, key=sort_key, reverse=True)
         if top_n:
             algo_runs = algo_runs[:top_n]
 
-        print(f"\n{'─' * 70}")
-        print(f"  {label}  ({len(algo_runs)} run{'s' if len(algo_runs) != 1 else ''})")
-        print(f"{'─' * 70}")
-
-        col_w = 32
-        state_w = 10
-        val_w = 12
-        header = f"  {'Run name':<{col_w}}{'state':<{state_w}}" + "".join(f"{m.split('_',1)[-1]:>{val_w}}" for m in metrics_to_show)
-        print(header)
-        print("  " + "-" * (col_w + state_w + val_w * len(metrics_to_show)))
+        print("  " + "─" * (divider_w - 2))
 
         for run in algo_runs:
-            row = f"  {run.name:<{col_w}}{run.state:<{state_w}}"
-            for m in metrics_to_show:
-                val = run.summary.get(m)
-                if val is None:
-                    row += f"{'—':>{val_w}}"
+            steps = run.summary.get("t_env") or run.summary.get("_step")
+            t_max = run.config.get("t_max")
+            prog  = _progress_bar(steps, t_max)
+            icon  = STATE_ICON.get(run.state, "?")
+
+            row = f"  {alabel:<{algo_w}} {run.name:<{name_w}} {prog:<{prog_w}}"
+            for lbl, key in metrics:
+                if lbl == "q_on_win":
+                    nq = _val(run, "test_navigation_quality_mean")
+                    bw = _val(run, "test_battle_won_mean")
+                    v  = (nq / bw) if (nq is not None and bw and bw > 0) else None
                 else:
-                    row += f"{val:>{val_w}.4f}"
+                    v = _val(run, key)
+                row += _fmt(v, val_w)
+            row += f"  {icon}"
             print(row)
 
+        # Best row if multiple runs
         if len(algo_runs) > 1:
-            print("  " + "-" * (col_w + state_w + val_w * len(metrics_to_show)))
-            best_row = f"  {'best':>{col_w}}{'':>{state_w}}"
-            for m in metrics_to_show:
-                vals = [r.summary.get(m) for r in algo_runs if r.summary.get(m) is not None]
-                best_row += f"{max(vals):>{val_w}.4f}" if vals else f"{'—':>{val_w}}"
-            print(best_row)
+            row = f"  {'':>{algo_w}} {'best':<{name_w}} {'':>{prog_w}}"
+            for lbl, key in metrics:
+                if lbl == "q_on_win":
+                    vals = []
+                    for r in algo_runs:
+                        nq = _val(r, "test_navigation_quality_mean")
+                        bw = _val(r, "test_battle_won_mean")
+                        if nq is not None and bw and bw > 0:
+                            vals.append(nq / bw)
+                else:
+                    vals = [_val(r, key) for r in algo_runs if _val(r, key) is not None]
+                row += (_fmt(max(vals), val_w) if vals else f"{'—':>{val_w}}")
+            print(row)
+
+    print()
 
 
 def main() -> None:
@@ -164,22 +214,32 @@ def main() -> None:
         sys.exit(1)
 
     api = wandb.Api()
-    entity, project = args.entity, args.project
-    print(f"W&B  entity={entity}  project={project}")
-    print(f"Fetching runs for version={args.version}"
+    print(f"W&B  entity={args.entity}  project={args.project}")
+    print(f"Fetching runs: version={args.version}"
           + (f"  algo={args.algo}" if args.algo else "")
           + f"  state={args.state} …")
 
-    runs = fetch_runs(api, entity, project, args.version, args.algo, args.state)
+    runs = fetch_runs(api, args.entity, args.project, args.version, args.algo, args.state)
 
     if not runs:
         print(f"\nNo runs found for version={args.version!r}.")
-        print("Hint: check that the version string appears in run tags, group, or name.")
+        print("Hint: check that the version string appears in run name, tags, group, or env_config.")
         sys.exit(0)
 
-    print(f"Found {len(runs)} run(s).")
-    summarise_runs(runs, extra_metric=args.metric, top_n=args.top)
-    print()
+    print(f"Found {len(runs)} run(s).\n")
+
+    nav_runs = [r for r in runs if "nav" in r.name.lower()]
+    neg_runs = [r for r in runs if "neg" in r.name.lower()]
+    other    = [r for r in runs if r not in nav_runs and r not in neg_runs]
+
+    print_section("NAVIGATION  —  quality / quality-on-win / length / battle_won",
+                  nav_runs, NAV_METRICS, args.top)
+    print_section("NEGOTIATION  —  quality / agreed / length / battle_won",
+                  neg_runs, NEG_METRICS, args.top)
+    if other:
+        print_section("OTHER", other,
+                      [("return", "test_return_mean"), ("total_ret", "test_total_return_mean"),
+                       ("battle_won", "test_battle_won_mean")], args.top)
 
 
 if __name__ == "__main__":
