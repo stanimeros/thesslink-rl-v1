@@ -27,3 +27,9 @@ register(id="thesslink/ThessLink-e3-w5-nav-v1", entry_point="thesslink_rl.wrappe
 register(id="thesslink/ThessLink-e3-w3-nav-v1-g32", entry_point="thesslink_rl.wrappers.v3_nav:GridNegotiationGymEnv", kwargs={"grid_size": 32})
 register(id="thesslink/ThessLink-e3-w4-nav-v1-g32", entry_point="thesslink_rl.wrappers.v4_nav:GridNegotiationGymEnv", kwargs={"grid_size": 32})
 register(id="thesslink/ThessLink-e3-w5-nav-v1-g32", entry_point="thesslink_rl.wrappers.v5_nav:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+
+# ── Environment v3 — navigation w6: 8-dir lidar + per-agent shaping ──────────
+register(id="thesslink/ThessLink-e3-w6-nav-v1-g32", entry_point="thesslink_rl.wrappers.v6_nav:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+
+# ── Environment v3 — negotiation w6: minimal obs (no nav noise) ──────────────
+register(id="thesslink/ThessLink-e3-w6-neg-v1-g32", entry_point="thesslink_rl.wrappers.v6_neg:GridNegotiationGymEnv", kwargs={"grid_size": 32})

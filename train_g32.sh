@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ThessLink RL — w5 g32 training launcher.
+# ThessLink RL — w6 g32 training launcher.
 # Runs: setup → smoke test (neg + nav) → clear → launch all algos in parallel.
 #
 # Usage:
@@ -17,7 +17,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$_script")" && pwd)"
 cd "$SCRIPT_DIR"
 
-LOG_DIR="$SCRIPT_DIR/logs/train_g32"
+LOG_DIR="$SCRIPT_DIR/logs/train_g32_w6"
 mkdir -p "$LOG_DIR"
 
 if [[ "${1:-}" == "--detach" ]]; then
@@ -39,8 +39,8 @@ LOGS_ROOT="$RESULTS_DIR_ABS/logs"
 EPYMARL_SRC="epymarl/src"
 VENV=".venv/bin/activate"
 
-NEG_ENV="thesslink_e3_w5_neg_v2_g32"
-NAV_ENV="thesslink_e3_w5_nav_v1_g32"
+NEG_ENV="thesslink_e3_w6_neg_v1_g32"
+NAV_ENV="thesslink_e3_w6_nav_v1_g32"
 
 WANDB_ENTITY_VAL="${WANDB_ENTITY:-aid26006-university-of-macedonia}"
 WANDB_PROJECT_VAL="${WANDB_PROJECT:-thesslink-rl}"
