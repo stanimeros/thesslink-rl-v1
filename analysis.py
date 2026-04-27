@@ -18,7 +18,7 @@ from collections import defaultdict
 WANDB_ENTITY = os.environ.get("WANDB_ENTITY", "aid26006-university-of-macedonia")
 WANDB_PROJECT = os.environ.get("WANDB_PROJECT", "thesslink-rl")
 
-ALGOS = ("iql", "qmix", "vdn", "mappo", "coma")
+ALGOS = ("iql", "qmix", "mappo", "ippo", "maddpg")
 
 KEY_METRICS = [
     "test_return_mean",
