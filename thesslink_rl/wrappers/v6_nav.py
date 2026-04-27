@@ -103,7 +103,7 @@ class GridNegotiationGymEnv(gym.Env):
         render_mode: str | None = None,
         seed: int = 0,
         grid_size: int = GRID_SIZE,
-        time_limit: int = 480,
+        time_limit: int = 320,
         shaping_gamma: float = 0.99,
         step_penalty: float = -0.001,
         arrival_scale: float = 25.0,

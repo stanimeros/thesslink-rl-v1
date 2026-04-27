@@ -1,0 +1,38 @@
+env: "gymma"
+
+env_args:
+  key: "thesslink_rl:thesslink/ThessLink-e3-w7-full-v1-g32"
+  # Overall episode budget: neg_time_limit + nav_time_limit
+  time_limit: 352
+  grid_size: 32
+
+  # Negotiation phase params (v6_neg values)
+  step_penalty: -0.05
+  suggest_bonus: 0.2
+  accept_bonus: 1.5
+  convergence_bonus: 0.5
+  optimal_agreement_bonus: 35.0
+  suboptimal_agreement_bonus: 0.0
+  wrong_agreement_penalty: -12.0
+  neg_timeout_penalty: -5.0
+  neg_time_limit: 32
+
+  # Navigation phase params (v6_nav values)
+  shaping_gamma: 0.99
+  nav_step_penalty: -0.001
+  arrival_scale: 25.0
+  nav_timeout_penalty: -8.0
+  first_arrival_bonus: 5.0
+  nav_time_limit: 320
+
+common_reward: false
+
+test_greedy: True
+test_nepisode: 32
+runner_log_interval: 20000
+learner_log_interval: 20000
+t_max: 2000000
+save_model: True
+save_model_interval: 400000
+log_interval: 20000
+test_interval: 50000

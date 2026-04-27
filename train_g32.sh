@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
-# ThessLink RL — w6 g32 training launcher.
-# Runs: setup → smoke test (neg + nav) → clear → launch all algos in parallel.
+# ThessLink RL — w6 + w7 g32 training launcher.
+# Runs: setup → smoke test (neg + nav + full) → clear → launch all algos in parallel.
+#
+# Environments launched:
+#   w6: thesslink_e3_w6_neg_v1_g32   (negotiation-only, v6_neg rewards)
+#       thesslink_e3_w6_nav_v1_g32   (navigation-only,  v6_nav rewards, t_limit=320)
+#   w7: thesslink_e3_w7_full_v1_g32  (full neg→nav,     v7_full,        t_limit=352)
 #
 # Usage:
 #   ./train_g32.sh            # run in foreground
@@ -17,7 +22,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$_script")" && pwd)"
 cd "$SCRIPT_DIR"
 
-LOG_DIR="$SCRIPT_DIR/logs/train_g32_w6"
+LOG_DIR="$SCRIPT_DIR/logs/train_g32_w6_w7"
 mkdir -p "$LOG_DIR"
 
 if [[ "${1:-}" == "--detach" ]]; then
@@ -41,6 +46,7 @@ VENV=".venv/bin/activate"
 
 NEG_ENV="thesslink_e3_w6_neg_v1_g32"
 NAV_ENV="thesslink_e3_w6_nav_v1_g32"
+FULL_ENV="thesslink_e3_w7_full_v1_g32"
 
 WANDB_ENTITY_VAL="${WANDB_ENTITY:-aid26006-university-of-macedonia}"
 WANDB_PROJECT_VAL="${WANDB_PROJECT:-thesslink-rl}"
@@ -63,7 +69,7 @@ print(' '.join(mod.TRAINING_ALGOS))
 
 # ── Smoke test ───────────────────────────────────────────────────────────
 
-for env_cfg in "$NEG_ENV" "$NAV_ENV"; do
+for env_cfg in "$NEG_ENV" "$NAV_ENV" "$FULL_ENV"; do
     log "Smoke test: $env_cfg"
     THESSLINK_ENV="$env_cfg" python smoke_test.py || { err "Smoke FAILED for $env_cfg — aborting."; exit 1; }
 done
@@ -87,7 +93,7 @@ WANDB_WITH=(
 )
 
 PIDS=()
-for env_cfg in "$NEG_ENV" "$NAV_ENV"; do
+for env_cfg in "$NEG_ENV" "$NAV_ENV" "$FULL_ENV"; do
     mkdir -p "$LOGS_ROOT/${env_cfg}"
     for alg in "${ALL_ALGOS[@]}"; do
         logfile="$LOGS_ROOT/${env_cfg}/${alg}.log"
@@ -109,3 +115,4 @@ log "All ${#PIDS[@]} training jobs launched."
 log "Kill + clear: ./clear.sh"
 log "Neg logs:     $LOGS_ROOT/${NEG_ENV}/<algo>.log"
 log "Nav logs:     $LOGS_ROOT/${NAV_ENV}/<algo>.log"
+log "Full logs:    $LOGS_ROOT/${FULL_ENV}/<algo>.log"

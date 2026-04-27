@@ -33,3 +33,6 @@ register(id="thesslink/ThessLink-e3-w6-nav-v1-g32", entry_point="thesslink_rl.wr
 
 # ── Environment v3 — negotiation w6: minimal obs (no nav noise) ──────────────
 register(id="thesslink/ThessLink-e3-w6-neg-v1-g32", entry_point="thesslink_rl.wrappers.v6_neg:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+
+# ── Environment v3 — full episode w7: phase_flag + v6_neg + v6_nav rewards ───
+register(id="thesslink/ThessLink-e3-w7-full-v1-g32", entry_point="thesslink_rl.wrappers.v7_full:GridNegotiationGymEnv", kwargs={"grid_size": 32})
