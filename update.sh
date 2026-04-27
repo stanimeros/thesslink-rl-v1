@@ -67,4 +67,13 @@ for _f in epymarl_config/envs/*.yaml; do
 done
 ((_copied > 0)) || { err "No YAMLs found in epymarl_config/envs/"; exit 1; }
 
+log "Copying alg YAMLs into EPyMARL..."
+_copied=0
+for _f in epymarl_config/algs/*.yaml; do
+    [[ -f "$_f" ]] || continue
+    cp "$_f" "$EPYMARL_SRC/config/algs/"
+    ((_copied++)) || true
+done
+((_copied > 0)) || { err "No YAMLs found in epymarl_config/algs/"; exit 1; }
+
 log "Done."

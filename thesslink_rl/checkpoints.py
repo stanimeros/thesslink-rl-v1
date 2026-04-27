@@ -13,7 +13,7 @@ from typing import Any, Callable, Dict
 import numpy as np
 import yaml
 
-from .constants import PROJECT_ROOT, resolve_common_reward
+from .constants import PROJECT_ROOT
 
 # --- Sacred metrics → best environment timestep ---
 
@@ -200,8 +200,6 @@ def load_epymarl_config_for_algo(algo: str, env_config_name: str, seed: int) -> 
         _recursive_dict_update(config, yaml.safe_load(f))
     with open(cfg_dir / "algs" / f"{algo}.yaml") as f:
         _recursive_dict_update(config, yaml.safe_load(f))
-
-    config["common_reward"] = resolve_common_reward(algo, env_config_name)
 
     config["seed"] = seed
     config["env_args"]["seed"] = seed

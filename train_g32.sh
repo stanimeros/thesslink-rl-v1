@@ -86,21 +86,11 @@ WANDB_WITH=(
     wandb_save_model=False
 )
 
-common_reward_flag() {
-    local algo="$1" env_cfg="$2"
-    PYTHONPATH="$SCRIPT_DIR" python -c "
-from thesslink_rl.constants import epymarl_common_reward_cli_flag
-import sys
-print(epymarl_common_reward_cli_flag(sys.argv[1], sys.argv[2]))
-" "$algo" "$env_cfg"
-}
-
 PIDS=()
 for env_cfg in "$NEG_ENV" "$NAV_ENV"; do
     mkdir -p "$LOGS_ROOT/${env_cfg}"
     for alg in "${ALL_ALGOS[@]}"; do
         logfile="$LOGS_ROOT/${env_cfg}/${alg}.log"
-        extra=$(common_reward_flag "$alg" "$env_cfg")
         log "  Starting ${env_cfg}/${alg} → $logfile"
         nohup python "$EPYMARL_SRC/main.py" \
             --config="$alg" \
@@ -108,7 +98,6 @@ for env_cfg in "$NEG_ENV" "$NAV_ENV"; do
             with \
             local_results_path="$RESULTS_DIR_ABS" \
             "seed=${SEED}" \
-            $extra \
             "${WANDB_WITH[@]}" \
             > "$logfile" 2>&1 &
         PIDS+=($!)

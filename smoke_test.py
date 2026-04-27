@@ -47,7 +47,6 @@ from thesslink_rl.constants import (
     EPYMARL_SRC,
     PROJECT_ROOT,
     TRAINING_ALGOS,
-    epymarl_common_reward_cli_flag,
 )
 
 T_MAX = 1000
@@ -105,7 +104,6 @@ def run_training(algo: str) -> Path:
         f"save_model_interval={SAVE_MODEL_INTERVAL}",
         f"test_nepisode=8",
         "use_wandb=False",
-        epymarl_common_reward_cli_flag(algo, ENV_CONFIG),
     ]
     print(f"\n{'='*60}")
     print(f"STEP 1 — Smoke training: {algo.upper()}")
@@ -113,7 +111,6 @@ def run_training(algo: str) -> Path:
         f"  t_max={T_MAX}  test_interval={TEST_INTERVAL}  log_interval={LOG_INTERVAL}  "
         "use_wandb=False (smoke does not log to W&B)"
     )
-    print(f"  {epymarl_common_reward_cli_flag(algo, ENV_CONFIG)}")
     print(f"  cmd: {' '.join(cmd[cmd.index('with'):])}")
     print(f"{'='*60}\n")
 
