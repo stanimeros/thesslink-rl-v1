@@ -2,6 +2,7 @@ env: "gymma"
 
 env_args:
   key: "thesslink_rl:thesslink/ThessLink-e3-w7-full-v1-g32"
+  pretrained_wrapper: null
   # Overall episode budget: neg_time_limit + nav_time_limit
   time_limit: 352
   grid_size: 32
