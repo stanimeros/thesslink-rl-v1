@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ThessLink RL — w6 g64 training launcher.
-# Runs: setup → smoke test (neg + nav) → clear → launch all algos in parallel.
+# Runs: setup → smoke test (nav only) → clear → launch all algos in parallel.
 #
 # Environments:
-#   thesslink_e3_w6_neg_v1_g64  (negotiation-only,  v6_neg, 64×64,  t_max=250k)
-#   thesslink_e3_w6_nav_v1_g64  (navigation-only,  v6_nav,  t_limit=384 = 64×6)
+#   (neg disabled) thesslink_e3_w6_neg_v1_g64  (negotiation-only, v6_neg, 64×64)
+#   thesslink_e3_w6_nav_v1_g64  (navigation-only, v6_nav, t_limit=384 = 64×6)
 #
 # (No w7 full g64 is registered; use train_g32.sh for full-episode g32.)
 #
@@ -45,7 +45,7 @@ LOGS_ROOT="$RESULTS_DIR_ABS/logs"
 EPYMARL_SRC="epymarl/src"
 VENV=".venv/bin/activate"
 
-NEG_ENV="thesslink_e3_w6_neg_v1_g64"
+# NEG_ENV="thesslink_e3_w6_neg_v1_g64"
 NAV_ENV="thesslink_e3_w6_nav_v1_g64"
 
 WANDB_ENTITY_VAL="${WANDB_ENTITY:-aid26006-university-of-macedonia}"
@@ -69,7 +69,7 @@ print(' '.join(mod.TRAINING_ALGOS))
 
 # ── Smoke test ───────────────────────────────────────────────────────────
 
-for env_cfg in "$NEG_ENV" "$NAV_ENV"; do
+for env_cfg in "$NAV_ENV"; do
     log "Smoke test: $env_cfg"
     THESSLINK_ENV="$env_cfg" python smoke_test.py || { err "Smoke FAILED for $env_cfg — aborting."; exit 1; }
 done
@@ -93,7 +93,7 @@ WANDB_WITH=(
 )
 
 PIDS=()
-for env_cfg in "$NEG_ENV" "$NAV_ENV"; do
+for env_cfg in "$NAV_ENV"; do
     mkdir -p "$LOGS_ROOT/${env_cfg}"
     for alg in "${ALL_ALGOS[@]}"; do
         logfile="$LOGS_ROOT/${env_cfg}/${alg}.log"
@@ -113,5 +113,5 @@ done
 echo ""
 log "All ${#PIDS[@]} training jobs launched."
 log "Kill + clear: ./clear.sh"
-log "Neg logs: $LOGS_ROOT/${NEG_ENV}/<algo>.log"
+# log "Neg logs: $LOGS_ROOT/${NEG_ENV}/<algo>.log"
 log "Nav logs: $LOGS_ROOT/${NAV_ENV}/<algo>.log"

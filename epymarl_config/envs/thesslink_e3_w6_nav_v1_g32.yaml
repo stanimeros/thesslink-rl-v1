@@ -9,7 +9,6 @@ env_args:
   step_penalty: -0.001
   arrival_scale: 25.0
   timeout_penalty: -8.0
-  first_arrival_bonus: 5.0
 
 common_reward: false
 
