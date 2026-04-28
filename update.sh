@@ -48,6 +48,7 @@ _PATCHES=(
     "$PATCH_DIR/epymarl_01_thesslink_base.patch"
     "$PATCH_DIR/epymarl_02_wandb_run_name.patch"
     "$PATCH_DIR/epymarl_03_wandb_tags_group.patch"
+    "$PATCH_DIR/epymarl_04_thesslink_gymma_time_limit.patch"
 )
 for _p in "${_PATCHES[@]}"; do
     [[ -f "$_p" ]] || { err "Missing patch: $_p"; exit 1; }

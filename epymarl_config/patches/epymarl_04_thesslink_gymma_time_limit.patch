@@ -1,0 +1,18 @@
+diff --git a/src/envs/gymma.py b/src/envs/gymma.py
+index aeba61f..d2587ed 100644
+--- a/src/envs/gymma.py
++++ b/src/envs/gymma.py
+@@ -36,7 +36,12 @@ class GymmaWrapper(MultiAgentEnv):
+         reward_scalarisation,
+         **kwargs,
+     ):
+-        self._env = gym.make(f"{key}", **kwargs)
++        make_kwargs = dict(kwargs)
++        # ThessLink envs read ``time_limit`` inside ``gym.make``; GymmaWrapper also
++        # uses it for ``TimeLimit``, and does not put it in ``kwargs`` by default.
++        if "thesslink" in str(key).lower():
++            make_kwargs["time_limit"] = time_limit
++        self._env = gym.make(f"{key}", **make_kwargs)
+         self._env = TimeLimit(self._env, max_episode_steps=time_limit)
+         self._env = FlattenObservation(self._env)
+ 
