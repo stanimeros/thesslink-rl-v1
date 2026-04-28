@@ -4,7 +4,7 @@
 #
 # Environments launched:
 #   w6: thesslink_e3_w6_neg_v1_g32   (negotiation-only, v6_neg rewards)
-#       thesslink_e3_w6_nav_v1_g32   (navigation-only,  v6_nav rewards, t_limit=192 = 32×6)
+#       thesslink_e3_w6_nav_v1_g32   (navigation-only, v6_nav rewards, t_limit=512)
 #   w7: thesslink_e3_w7_full_v1_g32  (full neg→nav,     v7_full,        t_limit=352)
 #
 # Usage:

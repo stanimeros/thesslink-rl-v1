@@ -2,7 +2,7 @@ env: "gymma"
 
 env_args:
   key: "thesslink_rl:thesslink/ThessLink-e3-w6-nav-v1-g64"
-  time_limit: 384
+  time_limit: 512
   pretrained_wrapper: null
   grid_size: 64
   shaping_gamma: 0.99
