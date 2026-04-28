@@ -1,17 +1,23 @@
-"""Summary values, W&B history sampling, and section tables."""
+"""Summary values, W&B history scan (peaks / best logged points), and section tables."""
 
 from __future__ import annotations
 
 from collections import defaultdict
 
-from .config import ALGOS, STATE_ICON
+from .config import ALGOS, STATE_ICON, all_logged_test_metric_keys, metric_objective
 from .wandb_runs import detect_algo
 
 _history_cache: dict = {}
+# One sampled ``run.history`` per run id (uniform samples; fast on long / live runs).
+_HISTORY_SAMPLES = 500
+_run_series: dict[str, dict[str, list[float]]] = {}
+_run_q_on_win_ratios: dict[str, list[float]] = {}
 
 
 def clear_history_cache() -> None:
     _history_cache.clear()
+    _run_series.clear()
+    _run_q_on_win_ratios.clear()
 
 
 def val(run, key: str | None) -> float | None:
@@ -20,10 +26,100 @@ def val(run, key: str | None) -> float | None:
     return run.summary.get(key)
 
 
+def _ensure_run_series(run) -> dict[str, list[float]]:
+    """Populate per-run series from a **uniform sample** of W&B steps (``run.history``).
+
+    ``scan_history`` is accurate but can take minutes on multi-million-step runs;
+    peaks/minima here are **approximate** (best logged point in the sample).
+    """
+    rid = run.id
+    if rid in _run_series:
+        return _run_series[rid]
+    keys = all_logged_test_metric_keys()
+    series: dict[str, list[float]] = {k: [] for k in keys}
+    q_ratios: list[float] = []
+    try:
+        key_list = sorted(keys)
+        rows = run.history(samples=_HISTORY_SAMPLES, keys=key_list, pandas=False)
+        for row in rows:
+            for k in keys:
+                v = row.get(k)
+                if isinstance(v, (int, float)) and v == v:
+                    series[k].append(float(v))
+            nq = row.get("test_navigation_quality_mean")
+            bw = row.get("test_battle_won_mean")
+            if (
+                isinstance(nq, (int, float))
+                and nq == nq
+                and isinstance(bw, (int, float))
+                and bw == bw
+                and bw > 0
+            ):
+                q_ratios.append(float(nq) / float(bw))
+    except Exception:
+        pass
+    _run_series[rid] = series
+    _run_q_on_win_ratios[rid] = q_ratios
+    return series
+
+
+def _q_on_win_ratios(run) -> list[float]:
+    _ensure_run_series(run)
+    return _run_q_on_win_ratios.get(run.id, [])
+
+
+def _peak_last_from_series(values: list[float], objective: str) -> tuple[float | None, float | None]:
+    if not values:
+        return None, None
+    last = values[-1]
+    if objective == "min":
+        peak = min(values)
+    else:
+        peak = max(values)
+    return peak, last
+
+
+def peak_last_for_key(run, key: str | None) -> tuple[float | None, float | None]:
+    """(hist_peak, hist_last) from full W&B history for ``key``; empty → (None, None)."""
+    if key is None:
+        return None, None
+    series = _ensure_run_series(run)
+    vals = series.get(key) or []
+    return _peak_last_from_series(vals, metric_objective(key))
+
+
+def peak_last_q_on_win(run) -> tuple[float | None, float | None]:
+    ratios = _q_on_win_ratios(run)
+    if ratios:
+        return _peak_last_from_series(ratios, "max")
+    nq = val(run, "test_navigation_quality_mean")
+    bw = val(run, "test_battle_won_mean")
+    if nq is not None and bw and bw > 0:
+        single = nq / bw
+        return single, single
+    return None, None
+
+
 def fmt(v: float | None, w: int) -> str:
     if v is None:
         return f"{'—':>{w}}"
     return f"{v:>{w}.3f}"
+
+
+def fmt_peak_last(peak: float | None, last: float | None, w: int) -> str:
+    """Compact ``peak→last`` (W&B summary last); same values collapse to one number."""
+    if peak is None and last is None:
+        return f"{'—':>{w}}"
+    if peak is None:
+        return fmt(last, w)
+    if last is None:
+        return f"{peak:>{w}.3f}"[:w]
+    if abs(peak - last) < 1e-9:
+        return fmt(peak, w)
+    s = f"{peak:.2f}→{last:.2f}"
+    if len(s) <= w:
+        return f"{s:>{w}}"
+    return f"{s:>{w}}"[:w]
 
 
 def progress_bar(steps: int | None, t_max: int | None, width: int = 12) -> str:
@@ -66,15 +162,68 @@ def trend_indicator(run, key: str | None, window_frac: float = 0.25, min_delta: 
     return "~"
 
 
-def metric_value(run, lbl: str, key: str | None) -> float | None:
+def metric_value(run, lbl: str, key: str | None, *, metrics_source: str = "history") -> float | None:
+    """Scalar for sorting / tie-break (summary mode, or history *last* / summary)."""
     if lbl == "q_on_win":
+        if metrics_source == "summary":
+            nq = val(run, "test_navigation_quality_mean")
+            bw = val(run, "test_battle_won_mean")
+            return (nq / bw) if (nq is not None and bw and bw > 0) else None
+        _, last = peak_last_q_on_win(run)
+        if last is not None:
+            return last
         nq = val(run, "test_navigation_quality_mean")
         bw = val(run, "test_battle_won_mean")
         return (nq / bw) if (nq is not None and bw and bw > 0) else None
+    if metrics_source == "summary":
+        return val(run, key)
+    _, last_h = peak_last_for_key(run, key)
+    last_summary = val(run, key)
+    last = last_summary if last_summary is not None else last_h
+    if last is not None:
+        return last
     return val(run, key)
 
 
-def print_section(title: str, runs: list, metrics: list[tuple[str, str | None]], top_n: int) -> None:
+def metric_cell(
+    run,
+    lbl: str,
+    key: str | None,
+    *,
+    metrics_source: str,
+    val_w: int,
+) -> str:
+    """Table cell: either summary scalar or ``hist_peak→summary_last``."""
+    if metrics_source == "summary":
+        v = metric_value(run, lbl, key, metrics_source="summary")
+        return fmt(v, val_w)
+    if lbl == "q_on_win":
+        peak, last = peak_last_q_on_win(run)
+        if peak is None and last is None:
+            nq = val(run, "test_navigation_quality_mean")
+            bw = val(run, "test_battle_won_mean")
+            if nq is not None and bw and bw > 0:
+                last = nq / bw
+                peak = last
+        return fmt_peak_last(peak, last, val_w)
+    if key is None:
+        return f"{'—':>{val_w}}"
+    peak_h, last_h = peak_last_for_key(run, key)
+    last_summary = val(run, key)
+    # Prefer W&B summary as "current" end state; fall back to history tail.
+    last = last_summary if last_summary is not None else last_h
+    peak = peak_h if peak_h is not None else last
+    return fmt_peak_last(peak, last, val_w)
+
+
+def print_section(
+    title: str,
+    runs: list,
+    metrics: list[tuple[str, str | None]],
+    top_n: int,
+    *,
+    metrics_source: str = "history",
+) -> None:
     if not runs:
         return
 
@@ -91,7 +240,7 @@ def print_section(title: str, runs: list, metrics: list[tuple[str, str | None]],
     name_w = max(len(r.name) for r in runs) + 1
     name_w = max(name_w, 18)
     prog_w = 19
-    val_w = 10
+    val_w = 12 if metrics_source == "history" else 10
     algo_w = 7
     icon_w = 2
     trend_w = 2
@@ -108,18 +257,35 @@ def print_section(title: str, runs: list, metrics: list[tuple[str, str | None]],
     divider_w = algo_w + name_w + prog_w + val_w * len(metrics) + icon_w + trend_w + 7
     print(f"\n{'═' * divider_w}")
     print(f"  {title}")
+    if metrics_source == "history":
+        print(
+            f"  Metrics: sampled peak → W&B summary (last); ~{_HISTORY_SAMPLES} uniform "
+            "``run.history`` steps per run (fast; extrema are within that sample). "
+            "Length columns: lower peak is better. Use ``--metrics-source summary`` for summary only."
+        )
     print(f"{'═' * divider_w}")
     print(header)
 
     for algo_name, algo_runs in groups:
         alabel = algo_name.upper() if algo_name else "???"
 
-        def sort_key(r):
-            for _, key in metrics:
-                if key is not None:
-                    v = val(r, key)
+        def sort_key(r: object) -> float:
+            for lbl, key in metrics:
+                if metrics_source == "history":
+                    if lbl == "q_on_win":
+                        pk, _ = peak_last_q_on_win(r)
+                        if pk is not None:
+                            return float(pk)
+                        continue
+                    if key is not None:
+                        pk, _ = peak_last_for_key(r, key)
+                        if pk is not None:
+                            return float(pk)
+                        continue
+                else:
+                    v = metric_value(r, lbl, key, metrics_source=metrics_source)
                     if v is not None:
-                        return v
+                        return float(v)
             return float("-inf")
 
         algo_runs = sorted(algo_runs, key=sort_key, reverse=True)
@@ -137,33 +303,70 @@ def print_section(title: str, runs: list, metrics: list[tuple[str, str | None]],
             trend = trend_indicator(run, primary_key)
             row = f"  {alabel:<{algo_w}} {run.name:<{name_w}} {prog:<{prog_w}}"
             for lbl, key in metrics:
-                v = metric_value(run, lbl, key)
-                row += fmt(v, val_w)
+                row += metric_cell(run, lbl, key, metrics_source=metrics_source, val_w=val_w)
             row += f"  {trend:<{trend_w}}  {icon}"
             print(row)
 
         if len(algo_runs) > 1:
-            row = f"  {'':>{algo_w}} {'best':<{name_w}} {'':>{prog_w}}"
+            row = f"  {'':>{algo_w}} {'best':<{name_w}} {'':<{prog_w}}"
             for lbl, key in metrics:
                 if lbl == "q_on_win":
                     vals = []
                     for r in algo_runs:
-                        nq = val(r, "test_navigation_quality_mean")
-                        bw = val(r, "test_battle_won_mean")
-                        if nq is not None and bw and bw > 0:
-                            vals.append(nq / bw)
+                        pk, _ = peak_last_q_on_win(r)
+                        if pk is not None:
+                            vals.append(pk)
                 else:
-                    vals = [val(r, key) for r in algo_runs if val(r, key) is not None]
-                row += fmt(max(vals), val_w) if vals else f"{'—':>{val_w}}"
+                    vals = []
+                    for r in algo_runs:
+                        pk, _ = peak_last_for_key(r, key) if key else (None, None)
+                        if pk is not None:
+                            vals.append(pk)
+                if not vals:
+                    row += f"{'—':>{val_w}}"
+                elif key and metric_objective(key) == "min":
+                    row += fmt(min(vals), val_w)
+                else:
+                    row += fmt(max(vals), val_w)
             print(row)
 
     print()
 
 
 def best_run_per_algo(
-    runs: list, metrics: list[tuple[str, str | None]]
+    runs: list,
+    metrics: list[tuple[str, str | None]],
+    *,
+    metrics_source: str = "history",
 ) -> dict[str, object]:
-    """One run per algorithm (best by first available summary metric)."""
+    """One run per algorithm (best by first column: history peak or W&B summary)."""
+
+    def primary_score(r: object) -> float:
+        for lbl, key in metrics:
+            if metrics_source == "history":
+                if lbl == "q_on_win":
+                    pk, _ = peak_last_q_on_win(r)
+                    if pk is not None:
+                        return float(pk)
+                    continue
+                if key is not None:
+                    pk, _ = peak_last_for_key(r, key)
+                    if pk is not None:
+                        return float(pk)
+                    continue
+            else:
+                if lbl == "q_on_win":
+                    nq = val(r, "test_navigation_quality_mean")
+                    bw = val(r, "test_battle_won_mean")
+                    if nq is not None and bw and bw > 0:
+                        return float(nq / bw)
+                    continue
+                if key is not None:
+                    v = val(r, key)
+                    if v is not None:
+                        return float(v)
+        return float("-inf")
+
     by_algo: dict[str, list] = defaultdict(list)
     for run in runs:
         a = detect_algo(run)
@@ -171,17 +374,9 @@ def best_run_per_algo(
             by_algo[a].append(run)
     out: dict[str, object] = {}
 
-    def sort_key(r):
-        for _, key in metrics:
-            if key is not None:
-                v = val(r, key)
-                if v is not None:
-                    return v
-        return float("-inf")
-
     for a in ALGOS:
         if a not in by_algo:
             continue
-        ranked = sorted(by_algo[a], key=sort_key, reverse=True)
+        ranked = sorted(by_algo[a], key=primary_score, reverse=True)
         out[a] = ranked[0]
     return out

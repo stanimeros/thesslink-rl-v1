@@ -44,26 +44,30 @@ def cmd_runs(args: argparse.Namespace) -> None:
 
     parts = partition_runs(runs)
 
+    ms = args.metrics_source
     print_section(
         "FULL EPISODE  (neg → nav)  —  neg / nav test metrics / battle_won",
         parts.full,
         FULL_METRICS,
         args.top,
+        metrics_source=ms,
     )
     print_section(
         "NAVIGATION  —  quality / quality-on-win / length / battle_won",
         parts.nav,
         NAV_METRICS,
         args.top,
+        metrics_source=ms,
     )
     print_section(
         "NEGOTIATION  —  quality / agreed / length / battle_won",
         parts.neg,
         NEG_METRICS,
         args.top,
+        metrics_source=ms,
     )
     if parts.other:
-        print_section("OTHER", parts.other, OTHER_METRICS, args.top)
+        print_section("OTHER", parts.other, OTHER_METRICS, args.top, metrics_source=ms)
 
 
 def cmd_compare_algos(args: argparse.Namespace) -> None:
@@ -75,7 +79,7 @@ def cmd_compare_algos(args: argparse.Namespace) -> None:
         print(f"No runs found for version={args.version!r}.")
         return
     parts = partition_runs(runs)
-    print_algo_comparison(args.version, parts)
+    print_algo_comparison(args.version, parts, metrics_source=args.metrics_source)
 
 
 def cmd_compare_versions(args: argparse.Namespace) -> None:
@@ -89,6 +93,7 @@ def cmd_compare_versions(args: argparse.Namespace) -> None:
         list(args.versions),
         args.state,
         args.algo,
+        metrics_source=args.metrics_source,
     )
 
 
@@ -103,6 +108,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--state", default="all", choices=["finished", "running", "crashed", "failed", "all"])
+    common.add_argument(
+        "--metrics-source",
+        default="history",
+        choices=("history", "summary"),
+        help="history: peak→last from full W&B logged test_* curves; summary: run.summary only.",
+    )
 
     runs_p = sub.add_parser("runs", parents=[common], help="List runs for one version tag (detailed tables).")
     runs_p.add_argument("--version", "-v", required=True, help="Filter substring, e.g. w6, w7, w6_nav")

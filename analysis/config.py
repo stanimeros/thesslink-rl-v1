@@ -40,3 +40,29 @@ OTHER_METRICS = [
 ]
 
 STATE_ICON = {"running": "⟳", "finished": "✓", "crashed": "✗", "failed": "✗"}
+
+# History aggregation for ``scan_history`` peaks (lower is better for lengths).
+_METRIC_OBJECTIVE_MIN = frozenset(
+    {
+        "test_navigation_length_mean",
+        "test_negotiation_length_mean",
+    }
+)
+
+
+def metric_objective(key: str | None) -> str:
+    """Return ``"min"`` or ``"max"`` for scalar test metrics over logged history."""
+    if key is None:
+        return "max"
+    return "min" if key in _METRIC_OBJECTIVE_MIN else "max"
+
+
+def all_logged_test_metric_keys() -> frozenset[str]:
+    """Union of W&B keys used by ``runs`` / compare tables (single ``scan_history`` per run)."""
+    keys: set[str] = set()
+    for block in (NAV_METRICS, NEG_METRICS, FULL_METRICS, OTHER_METRICS):
+        for _, k in block:
+            if k:
+                keys.add(k)
+    keys.update({"test_navigation_quality_mean", "test_battle_won_mean"})
+    return frozenset(keys)

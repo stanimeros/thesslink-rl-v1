@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .config import ALGOS, FULL_METRICS, NAV_METRICS, NEG_METRICS
-from .metrics_display import best_run_per_algo, fmt, metric_value
+from .metrics_display import best_run_per_algo, metric_cell, metric_value
 from .partition import RunPartition, partition_runs
 from .wandb_runs import fetch_runs
 
@@ -14,14 +14,28 @@ def _divider(title: str, w: int = 88) -> None:
     print(f"{'═' * w}")
 
 
-def _pick_run(runs: list, metrics: list[tuple[str, str | None]], algo: str):
-    best = best_run_per_algo(runs, metrics)
+def _pick_run(
+    runs: list,
+    metrics: list[tuple[str, str | None]],
+    algo: str,
+    *,
+    metrics_source: str,
+):
+    best = best_run_per_algo(runs, metrics, metrics_source=metrics_source)
     return best.get(algo)
 
 
-def print_algo_comparison(version: str, parts: RunPartition) -> None:
+def print_algo_comparison(
+    version: str,
+    parts: RunPartition,
+    *,
+    metrics_source: str = "history",
+) -> None:
     """Best run per algorithm for each bucket (wide grid)."""
-    _divider(f"COMPARE ALGORITHMS  |  version={version}  |  best run per algo (by primary metric)")
+    _divider(
+        f"COMPARE ALGORITHMS  |  version={version}  |  best run per algo "
+        f"(metrics_source={metrics_source})"
+    )
 
     sections = [
         ("FULL EPISODE (neg → nav)", parts.full, FULL_METRICS),
@@ -29,14 +43,14 @@ def print_algo_comparison(version: str, parts: RunPartition) -> None:
         ("NEGOTIATION (neg-only env)", parts.neg, NEG_METRICS),
     ]
 
-    val_w = 10
+    val_w = 12 if metrics_source == "history" else 10
     algo_w = 7
 
     for title, runs, metrics in sections:
         if not runs:
             continue
         print(f"\n--- {title} ---")
-        best = best_run_per_algo(runs, metrics)
+        best = best_run_per_algo(runs, metrics, metrics_source=metrics_source)
         hdr_cells = [f"{lbl:>{val_w}}" for lbl, _ in metrics]
         header = f"  {'algo':<{algo_w}}" + "  ".join(hdr_cells)
         print(header)
@@ -45,7 +59,10 @@ def print_algo_comparison(version: str, parts: RunPartition) -> None:
             if a not in best:
                 continue
             run = best[a]
-            cells = [fmt(metric_value(run, lbl, key), val_w) for lbl, key in metrics]
+            cells = [
+                metric_cell(run, lbl, key, metrics_source=metrics_source, val_w=val_w)
+                for lbl, key in metrics
+            ]
             print(f"  {a.upper():<{algo_w}}" + "  ".join(cells))
 
 
@@ -56,12 +73,14 @@ def _print_metric_pivot(
     bucket_attr: str,
     metrics: list[tuple[str, str | None]],
     missing_note: str = "",
+    *,
+    metrics_source: str = "history",
 ) -> None:
     buckets = {v: getattr(per_v[v], bucket_attr) for v in versions}
     if not any(buckets.values()):
         return
 
-    cw = max(12, max(len(v) for v in versions) + 2)
+    cw = max(14, max(len(v) for v in versions) + 2)
     print(f"\n--- {title} ---")
     if missing_note:
         print(f"  ({missing_note})")
@@ -73,10 +92,10 @@ def _print_metric_pivot(
         has_any = False
         for v in versions:
             for a in ALGOS:
-                run = _pick_run(buckets[v], metrics, a)
+                run = _pick_run(buckets[v], metrics, a, metrics_source=metrics_source)
                 if run is None:
                     continue
-                if metric_value(run, lbl, key) is not None:
+                if metric_value(run, lbl, key, metrics_source=metrics_source) is not None:
                     has_any = True
                     break
             if has_any:
@@ -92,16 +111,18 @@ def _print_metric_pivot(
             cells = []
             anyv = False
             for v in versions:
-                run = _pick_run(buckets[v], metrics, a)
+                run = _pick_run(buckets[v], metrics, a, metrics_source=metrics_source)
                 if run is None:
                     cells.append(f"{'—':>{cw}}")
                     continue
-                mv = metric_value(run, lbl, key)
+                mv = metric_value(run, lbl, key, metrics_source=metrics_source)
                 if mv is None:
                     cells.append(f"{'—':>{cw}}")
-                else:
-                    anyv = True
-                    cells.append(f"{mv:>{cw}.3f}")
+                    continue
+                anyv = True
+                cells.append(
+                    metric_cell(run, lbl, key, metrics_source=metrics_source, val_w=cw)
+                )
             if anyv:
                 print(f"  {a.upper():<7}" + "".join(cells))
 
@@ -113,11 +134,13 @@ def print_version_comparison(
     versions: list[str],
     state: str,
     algo_filter: str | None,
+    *,
+    metrics_source: str = "history",
 ) -> None:
     """Pivot tables: metrics × algos × version filters."""
     _divider(
-        f"COMPARE VERSIONS  |  {' vs '.join(versions)}  |  state={state}",
-        w=92,
+        f"COMPARE VERSIONS  |  {' vs '.join(versions)}  |  state={state}  |  metrics={metrics_source}",
+        w=96,
     )
 
     per_v: dict[str, RunPartition] = {}
@@ -127,7 +150,8 @@ def print_version_comparison(
 
     print(
         "\n  Legend: nav-only / neg-only rows use dedicated env runs when present.\n"
-        "  Full-episode metrics come from neg→nav runs; interpret cross-version deltas carefully."
+        "  Full-episode metrics come from neg→nav runs; interpret cross-version deltas carefully.\n"
+        "  When metrics=history, cells are peak→last from logged curves (see ``analysis runs --help``)."
     )
 
     _print_metric_pivot(
@@ -137,6 +161,7 @@ def print_version_comparison(
         "full",
         FULL_METRICS,
         "Versions with no full runs show as —.",
+        metrics_source=metrics_source,
     )
 
     _print_metric_pivot(
@@ -145,6 +170,7 @@ def print_version_comparison(
         per_v,
         "nav",
         NAV_METRICS,
+        metrics_source=metrics_source,
     )
 
     if any(per_v[v].full for v in versions):
@@ -154,6 +180,7 @@ def print_version_comparison(
             per_v,
             "full",
             [("nav_q", "test_navigation_quality_mean")],
+            metrics_source=metrics_source,
         )
 
     _print_metric_pivot(
@@ -162,6 +189,7 @@ def print_version_comparison(
         per_v,
         "neg",
         NEG_METRICS,
+        metrics_source=metrics_source,
     )
 
     neg_from_full = [m for m in FULL_METRICS if m[0] in ("neg_q", "neg_agree", "neg_len")]
@@ -171,4 +199,5 @@ def print_version_comparison(
         per_v,
         "full",
         neg_from_full,
+        metrics_source=metrics_source,
     )
