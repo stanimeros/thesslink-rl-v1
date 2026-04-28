@@ -3,7 +3,7 @@
 # Runs: setup → smoke test (neg + nav) → clear → launch all algos in parallel.
 #
 # Environments:
-#   thesslink_e3_w6_neg_v1_g64  (negotiation-only,  v6_neg, 64×64,  t_max=500k)
+#   thesslink_e3_w6_neg_v1_g64  (negotiation-only,  v6_neg, 64×64,  t_max=250k)
 #   thesslink_e3_w6_nav_v1_g64  (navigation-only,  v6_nav,  t_limit=384 = 64×6)
 #
 # (No w7 full g64 is registered; use train_g32.sh for full-episode g32.)

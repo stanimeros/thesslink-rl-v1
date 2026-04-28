@@ -6,10 +6,10 @@ env_args:
   pretrained_wrapper: null
   grid_size: 64
   shaping_gamma: 0.99
-  step_penalty: -0.001
-  arrival_scale: 25.0
-  timeout_penalty: -8.0
-  first_arrival_bonus: 5.0
+  step_penalty: -0.002
+  arrival_scale: 50.0
+  timeout_penalty: -12.0
+  first_arrival_bonus: 8.0
 
 common_reward: false
 
