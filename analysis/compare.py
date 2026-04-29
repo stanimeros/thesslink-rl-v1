@@ -220,11 +220,11 @@ def print_compare(
     # --- End-to-end (full run only) ---
     if fu.full:
         e2e_metrics: list[tuple[str, str | None]] = [
+            ("battle_won", "test_battle_won_mean"),
             ("neg_quality", "test_negotiation_quality_mean"),
             ("nav_quality", "test_navigation_quality_mean"),
             ("neg_len", "test_negotiation_length_mean"),
             ("nav_len", "test_navigation_length_mean"),
-            ("battle_won", "test_battle_won_mean"),
         ]
         print(f"\n--- END-TO-END  —  {full_ver}_full ---")
         labels = [lbl for lbl, _ in e2e_metrics]
