@@ -14,10 +14,13 @@ def fetch_runs(api, entity: str, project: str, version: str, algo: str | None, s
     matched = []
     vl = version.lower()
     for run in all_runs:
-        tags_l = [t.lower() for t in (run.tags or [])]
-        group_l = (run.group or "").lower()
-        name_l = run.name.lower()
-        config_env = (run.config.get("env_config") or run.config.get("env", "") or "").lower()
+        try:
+            tags_l = [t.lower() for t in (run.tags or [])]
+            group_l = (run.group or "").lower()
+            name_l = run.name.lower()
+            config_env = (run.config.get("env_config") or run.config.get("env", "") or "").lower()
+        except Exception:
+            continue
         combined = " ".join([name_l, group_l, config_env] + tags_l)
 
         if vl not in combined:
