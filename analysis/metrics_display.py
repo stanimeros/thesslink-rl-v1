@@ -12,12 +12,15 @@ _history_cache: dict = {}
 # One sampled ``run.history`` per run id (uniform samples; fast on long / live runs).
 _run_series: dict[str, dict[str, list[float]]] = {}
 _run_q_on_win_ratios: dict[str, list[float]] = {}
+# Peak info: {run_id: {metric_key: (value, step, timestamp)}}
+_run_peak_info: dict[str, dict[str, tuple[float, int | None, float | None]]] = {}
 
 
 def clear_history_cache() -> None:
     _history_cache.clear()
     _run_series.clear()
     _run_q_on_win_ratios.clear()
+    _run_peak_info.clear()
 
 
 def val(run, key: str | None) -> float | None:
@@ -62,15 +65,30 @@ def _ensure_run_series(run) -> dict[str, list[float]]:
         return _run_series[rid]
     keys = all_logged_test_metric_keys()
     series: dict[str, list[float]] = {k: [] for k in keys}
+    # Track best (value, step, timestamp) per key for peak info.
+    peak_info: dict[str, tuple[float, int | None, float | None]] = {}
     q_ratios: list[float] = []
     try:
-        key_list = sorted(keys)
+        summary_keys = set(run.summary.keys())
+        key_list = sorted(k for k in keys if k in summary_keys)
+        if not key_list:
+            key_list = sorted(keys)
         rows = run.history(samples=HISTORY_SAMPLES, keys=key_list, pandas=False)
         for row in rows:
+            step = row.get("_step")
+            ts = row.get("_timestamp")
             for k in keys:
                 v = row.get(k)
                 if isinstance(v, (int, float)) and v == v:
-                    series[k].append(float(v))
+                    fv = float(v)
+                    series[k].append(fv)
+                    obj = metric_objective(k)
+                    if k not in peak_info:
+                        peak_info[k] = (fv, step, ts)
+                    else:
+                        cur = peak_info[k][0]
+                        if (obj == "max" and fv > cur) or (obj == "min" and fv < cur):
+                            peak_info[k] = (fv, step, ts)
             nq = row.get("test_navigation_quality_mean")
             bw = row.get("test_battle_won_mean")
             if (
@@ -84,6 +102,7 @@ def _ensure_run_series(run) -> dict[str, list[float]]:
     except Exception:
         pass
     _run_series[rid] = series
+    _run_peak_info[rid] = peak_info
     _run_q_on_win_ratios[rid] = q_ratios
     return series
 
@@ -102,6 +121,39 @@ def _peak_last_from_series(values: list[float], objective: str) -> tuple[float |
     else:
         peak = max(values)
     return peak, last
+
+
+def peak_step_ts_for_key(run, key: str | None) -> tuple[int | None, float | None]:
+    """(step, timestamp) at which the peak occurred for ``key``; None if unavailable."""
+    if key is None:
+        return None, None
+    _ensure_run_series(run)
+    info = _run_peak_info.get(run.id, {}).get(key)
+    if info is None:
+        return None, None
+    _, step, ts = info
+    return step, ts
+
+
+def fmt_peak_location(run, key: str | None) -> str:
+    """Short string like 'step 1.2M  2025-03-14' showing where the peak occurred."""
+    step, ts = peak_step_ts_for_key(run, key)
+    parts = []
+    if step is not None:
+        if step >= 1_000_000:
+            parts.append(f"step {step/1_000_000:.1f}M")
+        elif step >= 1_000:
+            parts.append(f"step {step/1_000:.0f}k")
+        else:
+            parts.append(f"step {step}")
+    if ts is not None:
+        try:
+            from datetime import datetime, timezone
+            dt = datetime.fromtimestamp(float(ts), tz=timezone.utc)
+            parts.append(dt.strftime("%Y-%m-%d %H:%M"))
+        except Exception:
+            pass
+    return "  ".join(parts) if parts else "—"
 
 
 def peak_last_for_key(run, key: str | None) -> tuple[float | None, float | None]:

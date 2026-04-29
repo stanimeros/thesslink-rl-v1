@@ -5,6 +5,7 @@ from __future__ import annotations
 from .config import ALGOS, FULL_METRICS, NAV_METRICS, NEG_METRICS
 from .metrics_display import (
     best_run_per_algo,
+    fmt_peak_location,
     last_run_per_algo,
     metric_cell,
     metric_value,
@@ -193,6 +194,7 @@ def print_compare(
         picked_sp = {a: _pick(bucket_sp, a, pick=pick) for a in ALGOS}
         picked_fu = {a: _pick(bucket_fu, a, pick=pick) for a in ALGOS}
 
+        primary_key = next((key for _, key in metrics if key is not None), None)
         for a in ALGOS:
             r_sp = picked_sp.get(a)
             r_fu = picked_fu.get(a)
@@ -208,6 +210,12 @@ def print_compare(
                         for lbl, key in metrics
                     )
             print(row)
+            # Peak location line: step + timestamp per run
+            loc_sp = fmt_peak_location(r_sp, primary_key) if r_sp is not None else "—"
+            loc_fu = fmt_peak_location(r_fu, primary_key) if r_fu is not None else "—"
+            indent = " " * (algo_w + 2)
+            col_block = col_w * len(metrics)
+            print(f"  {'':<{algo_w}}  {f'@ {loc_sp}':<{col_block}}  {f'@ {loc_fu}':<{col_block}}")
 
     # --- End-to-end (full run only) ---
     if fu.full:
@@ -222,6 +230,7 @@ def print_compare(
         labels = [lbl for lbl, _ in e2e_metrics]
         print(f"  {'algo':<{algo_w}}" + "".join(f"{l:>{val_w}}" for l in labels))
         print("  " + "─" * (algo_w + val_w * len(e2e_metrics)))
+        e2e_primary = next((key for _, key in e2e_metrics if key is not None), None)
         picked_fu_e2e = {a: _pick(fu.full, a, pick=pick) for a in ALGOS}
         for a in ALGOS:
             run = picked_fu_e2e.get(a)
@@ -229,5 +238,6 @@ def print_compare(
                 continue
             cells = "".join(metric_cell(run, lbl, key, metrics_source=_MS, val_w=val_w) for lbl, key in e2e_metrics)
             print(f"  {a.upper():<{algo_w}}{cells}")
+            print(f"  {'':>{algo_w}}  @ {fmt_peak_location(run, e2e_primary)}")
 
     print()
