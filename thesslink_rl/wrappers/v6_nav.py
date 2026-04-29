@@ -168,6 +168,7 @@ class GridNegotiationGymEnv(gym.Env):
         step_penalty: float = -0.001,
         arrival_scale: float = 25.0,
         timeout_penalty: float = -8.0,
+        time_scale: float = 0.0,
         **kwargs: Any,
     ):
         if "first_arrival_bonus" in kwargs:
@@ -194,6 +195,7 @@ class GridNegotiationGymEnv(gym.Env):
         self._step_penalty = step_penalty
         self._arrival_scale = arrival_scale
         self._timeout_penalty = timeout_penalty
+        self._time_scale = time_scale
         self.n_agents = NUM_AGENTS
         self.action_space = spaces.Tuple(
             tuple(spaces.Discrete(ACTION_DIM) for _ in range(self.n_agents))
@@ -322,6 +324,7 @@ class GridNegotiationGymEnv(gym.Env):
                     self._poi_scores[a], int(self._agreed_poi)
                 )
                 rewards[i] += aq * self._arrival_scale
+                rewards[i] += max(0.0, 1.0 - self._nav_steps / self._time_limit) * self._time_scale
 
         all_reached = all(self._env.agents_reached[a] for a in agents)
 
