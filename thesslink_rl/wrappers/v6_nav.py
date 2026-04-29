@@ -33,14 +33,15 @@ Improvements over v5:
    Walls, obstacles, and out-of-bounds cells are encoded as 2.0 (unreachable).
 
 Observation layout (size 5):
+  gps             (4)  one-hot (multi-hot on ties) of the optimal BFS direction(s):
+                       [N, S, E, W] — 1 where moving gives minimum BFS distance,
+                       0 elsewhere.  All zeros when at target or fully surrounded.
   bfs_dist_norm   (1)  remaining shortest-path steps to target / initial BFS dist,
                        clipped to [0, 2] (inf unreachable → 1)
-  bfs_neighbors   (4)  BFS dist of N/S/E/W neighbour / initial BFS dist,
-                       clipped to [0, 2]; walls/obstacles/out-of-bounds → 2.0
 
-Self position, relative target position, and lidar are all removed: the BFS
-features already encode target direction, obstacle avoidance, and path structure
-implicitly.  Fewer noise features → faster convergence.
+The GPS encodes the BFS-optimal action directly so the agent never needs to
+learn "pick the minimum neighbour" — it just learns "follow the 1s".
+bfs_dist_norm gives a progress signal for value estimation.
 """
 
 from __future__ import annotations
@@ -69,12 +70,11 @@ from ..environments.v3 import (
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent
 
-# bfs_dist_norm(1) + bfs_neighbors(4)
+# gps(4) + bfs_dist_norm(1)
 OBS_FLAT_SIZE_V6 = 5
 
-# All features are normalised BFS distances in [0, 2].
 _OBS_LOW_V6 = np.zeros(5, dtype=np.float32)
-_OBS_HIGH_V6 = np.full(5, 2.0, dtype=np.float32)
+_OBS_HIGH_V6 = np.array([1.0, 1.0, 1.0, 1.0, 2.0], dtype=np.float32)
 
 
 
@@ -97,28 +97,31 @@ def _bfs_remaining_norm(
     return float(np.clip(d / idist, 0.0, 2.0))
 
 
-def _bfs_neighbors_norm(
+def _gps_onehot(
     target_bfs: np.ndarray,
-    initial_dist: float,
     grid_size: int,
     obstacle_map: np.ndarray,
     r: int,
     c: int,
 ) -> np.ndarray:
-    """BFS distances of the 4 cardinal neighbours (N, S, E, W), normalised by initial_dist.
+    """One-hot GPS: which cardinal direction(s) minimise BFS distance to target.
 
-    Returns shape-(4,) array in [0, 2].  Walls, obstacles, and out-of-bounds
-    cells are encoded as 2.0 so the agent learns to avoid them.
+    Returns shape-(4,) binary array [N, S, E, W].  Multiple bits are set when
+    directions tie for the minimum.  All zeros when at target (bfs=0) or
+    completely surrounded by walls.
     """
-    idist = max(initial_dist, 1e-6)
-    result = np.full(4, 2.0, dtype=np.float32)
-    for i, (dr, dc) in enumerate([(-1, 0), (1, 0), (0, 1), (0, -1)]):  # N, S, E, W
+    bfs_vals = []
+    for dr, dc in [(-1, 0), (1, 0), (0, 1), (0, -1)]:  # N, S, E, W
         nr, nc = r + dr, c + dc
         if 0 <= nr < grid_size and 0 <= nc < grid_size and not obstacle_map[nr, nc]:
             d = float(target_bfs[nr, nc])
-            if np.isfinite(d):
-                result[i] = float(np.clip(d / idist, 0.0, 2.0))
-    return result
+            bfs_vals.append(d if np.isfinite(d) else np.inf)
+        else:
+            bfs_vals.append(np.inf)
+    min_val = min(bfs_vals)
+    if np.isinf(min_val):
+        return np.zeros(4, dtype=np.float32)
+    return np.array([1.0 if v == min_val else 0.0 for v in bfs_vals], dtype=np.float32)
 
 
 
@@ -217,19 +220,14 @@ class GridNegotiationGymEnv(gym.Env):
         self._nav_steps: int = 0
 
     def _get_nav_obs(self, agents: list[str]) -> tuple[np.ndarray, ...]:
-        """Build BFS-only nav obs: bfs_dist_norm + bfs_neighbors (N/S/E/W)."""
+        """Build nav obs: BFS GPS one-hot (N/S/E/W) + bfs_dist_norm."""
         obs_list = []
         assert self._target_bfs is not None
         for a in agents:
             r, c = self._env.agent_positions[a]
+            gps = _gps_onehot(self._target_bfs, self._grid_size, self._env.obstacle_map, r, c)
             bfs_n = _bfs_remaining_norm(self._target_bfs, self._initial_dist, a, r, c)
-            bfs_nb = _bfs_neighbors_norm(
-                self._target_bfs, self._initial_dist[a], self._grid_size,
-                self._env.obstacle_map, r, c,
-            )
-            obs_list.append(
-                np.concatenate([np.array([bfs_n], dtype=np.float32), bfs_nb])
-            )
+            obs_list.append(np.concatenate([gps, np.array([bfs_n], dtype=np.float32)]))
         return tuple(obs_list)
 
     def reset(
