@@ -25,13 +25,22 @@ Improvements over v5:
    arrival credit use **only that agent's** state.  Arrival scale is multiplied by
    **that agent's** own POI preference vs their best POI, not joint negotiation_quality.
 
-Observation layout (size 13):
-  self_pos       (2)  (row, col) normalised to [0, 1]
-  relative_pos   (2)  (target - self) / (grid_size - 1)
-  lidar_card     (4)  N, S, E, W
-  lidar_diag     (4)  NE, SE, SW, NW
-  bfs_dist_norm  (1)  remaining shortest-path steps to target / initial BFS dist,
-                      clipped to [0, 2] (inf unreachable → 1)
+5. Neighbour BFS distances — four additional features giving the normalised BFS
+   distance of each cardinal neighbour (N, S, E, W).  Together with
+   ``bfs_dist_norm`` this exposes the local BFS gradient: the agent can directly
+   see which adjacent cell is closest to the target and learn to follow the
+   shortest path rather than discovering it purely through reward signals.
+   Walls, obstacles, and out-of-bounds cells are encoded as 2.0 (unreachable).
+
+Observation layout (size 17):
+  self_pos        (2)  (row, col) normalised to [0, 1]
+  relative_pos    (2)  (target - self) / (grid_size - 1)
+  lidar_card      (4)  N, S, E, W
+  lidar_diag      (4)  NE, SE, SW, NW
+  bfs_dist_norm   (1)  remaining shortest-path steps to target / initial BFS dist,
+                       clipped to [0, 2] (inf unreachable → 1)
+  bfs_neighbors   (4)  BFS dist of N/S/E/W neighbour / initial BFS dist,
+                       clipped to [0, 2]; walls/obstacles → 2.0
 """
 
 from __future__ import annotations
@@ -60,16 +69,16 @@ from ..environments.v3 import (
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent
 
-# Minimal nav obs: self_pos(2) + relative_pos(2) + lidar_card(4) + lidar_diag(4) + bfs_dist_norm(1)
-OBS_FLAT_SIZE_V6 = 13
+# self_pos(2) + relative_pos(2) + lidar_card(4) + lidar_diag(4) + bfs_dist_norm(1) + bfs_neighbors(4)
+OBS_FLAT_SIZE_V6 = 17
 
-# Per-dim bounds: last channel is normalised remaining geodesic distance (may exceed 1 if off-path).
+# Per-dim bounds: bfs features may exceed 1.0 when agent moves away from target (clipped at 2).
 _OBS_LOW_V6 = np.array(
-    [-1.0, -1.0, -1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    [-1.0, -1.0, -1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
     dtype=np.float32,
 )
 _OBS_HIGH_V6 = np.array(
-    [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0],
+    [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0],
     dtype=np.float32,
 )
 
@@ -110,6 +119,30 @@ def _bfs_remaining_norm(
     if not np.isfinite(d) or np.isinf(d):
         return 1.0
     return float(np.clip(d / idist, 0.0, 2.0))
+
+
+def _bfs_neighbors_norm(
+    target_bfs: np.ndarray,
+    initial_dist: float,
+    grid_size: int,
+    obstacle_map: np.ndarray,
+    r: int,
+    c: int,
+) -> np.ndarray:
+    """BFS distances of the 4 cardinal neighbours (N, S, E, W), normalised by initial_dist.
+
+    Returns shape-(4,) array in [0, 2].  Walls, obstacles, and out-of-bounds
+    cells are encoded as 2.0 so the agent learns to avoid them.
+    """
+    idist = max(initial_dist, 1e-6)
+    result = np.full(4, 2.0, dtype=np.float32)
+    for i, (dr, dc) in enumerate([(-1, 0), (1, 0), (0, 1), (0, -1)]):  # N, S, E, W
+        nr, nc = r + dr, c + dc
+        if 0 <= nr < grid_size and 0 <= nc < grid_size and not obstacle_map[nr, nc]:
+            d = float(target_bfs[nr, nc])
+            if np.isfinite(d):
+                result[i] = float(np.clip(d / idist, 0.0, 2.0))
+    return result
 
 
 def _agent_poi_preference_quality(scores: np.ndarray, poi_idx: int) -> float:
@@ -239,10 +272,14 @@ class GridNegotiationGymEnv(gym.Env):
             card = self._env._lidar(r, c)
             diag = _diag_lidar(self._env.obstacle_map, self._grid_size, r, c)
             bfs_n = _bfs_remaining_norm(self._target_bfs, self._initial_dist, a, r, c)
+            bfs_nb = _bfs_neighbors_norm(
+                self._target_bfs, self._initial_dist[a], self._grid_size,
+                self._env.obstacle_map, r, c,
+            )
 
             obs_list.append(
                 np.concatenate(
-                    [self_pos, relative_pos, card, diag, np.array([bfs_n], dtype=np.float32)]
+                    [self_pos, relative_pos, card, diag, np.array([bfs_n], dtype=np.float32), bfs_nb]
                 )
             )
         return tuple(obs_list)
