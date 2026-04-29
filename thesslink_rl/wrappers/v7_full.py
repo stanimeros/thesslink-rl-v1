@@ -263,7 +263,6 @@ class GridNegotiationGymEnv(gym.Env):
                 spawn, spawn, self._env.poi_positions, self._env.obstacle_map, cfg
             )
             self._poi_scores[agent] = scores
-            self._env.poi_scores[agent] = scores
 
         self._agreed_poi = None
         self._optimal_poi = optimal_poi(self._poi_scores, agents)

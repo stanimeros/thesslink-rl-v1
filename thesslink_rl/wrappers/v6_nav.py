@@ -1,36 +1,8 @@
 """Gym wrapper for navigation-only training (w6 reward shaping on v3 core env).
 
-Improvements over v5:
-
-1. Minimal nav-specific observation — strips the three negotiation features
-   that are constant noise in a nav-only episode:
-     - self_scores (3): fixed preference scores, irrelevant once POI is chosen
-     - peer_action (4): always [1,0,0,0] (no-action) since negotiation never runs
-     - agreed_poi  (3): always the same one-hot since target is preset each reset
-   Only the four actually informative features are kept.
-
-2. 8-directional lidar — adds NE, SE, SW, NW diagonal rays alongside the
-   existing N, S, E, W.  Agents can now see obstacles around corners and plan
-   detours around clusters that were invisible with only 4 rays.
-
-3. Per-agent shaping normalisation.  v5 normalised the potential by the global
-   max BFS distance on the map (up to ~150+ on a 32x32 grid), making the
-   shaping signal negligibly small.  v6 normalises by each agent's own initial
-   BFS distance to the target, so the per-step gradient toward the goal is
-   always O(1 / initial_dist) — much stronger and consistent regardless of
-   episode difficulty.  Total accumulated shaping over an optimal episode ≈ 1.0,
-   which pairs well with the arrival reward.
-
-4. Per-agent rewards (``common_reward=False``): shaping, step penalty, timeout, and
-   arrival credit use **only that agent's** state.  Arrival scale is multiplied by
-   **that agent's** own POI preference vs their best POI, not joint negotiation_quality.
-
-5. Neighbour BFS distances — four additional features giving the normalised BFS
-   distance of each cardinal neighbour (N, S, E, W).  Together with
-   ``bfs_dist_norm`` this exposes the local BFS gradient: the agent can directly
-   see which adjacent cell is closest to the target and learn to follow the
-   shortest path rather than discovering it purely through reward signals.
-   Walls, obstacles, and out-of-bounds cells are encoded as 2.0 (unreachable).
+Navigation is individual: each agent navigates to the agreed POI independently.
+The POI is set to the joint-optimal choice at reset (no negotiation phase).
+Rewards are fully per-agent — no team bonus, no cross-agent dependency.
 
 Observation layout (size 5):
   gps             (4)  one-hot (multi-hot on ties) of the optimal BFS direction(s):
@@ -64,7 +36,6 @@ from ..environments.v3 import (
     ACTION_DIM,
     GRID_SIZE,
     NUM_AGENTS,
-    NUM_POIS,
     GridNegotiationEnv,
 )
 
@@ -75,7 +46,6 @@ OBS_FLAT_SIZE_V6 = 5
 
 _OBS_LOW_V6 = np.zeros(5, dtype=np.float32)
 _OBS_HIGH_V6 = np.array([1.0, 1.0, 1.0, 1.0, 2.0], dtype=np.float32)
-
 
 
 def _bfs_remaining_norm(
@@ -140,19 +110,12 @@ def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray, norm_dist: floa
 
 
 class GridNegotiationGymEnv(gym.Env):
-    """Navigation-only env: 8-dir lidar + per-agent shaping normalisation (w6).
+    """Navigation-only env with GPS obs and per-agent BFS shaping (w6).
 
-    **Reward contract (individual learning):** ``step`` returns ``list[float]`` with
-    one scalar per agent index.  For each agent ``a``, ``rewards[i]`` is built only
-    from that agent's position history, own initial-distance normalisation, own
-    POI-preference factor at arrival, and whether *that* agent timed out — there is
-    no joint negotiation-quality multiplier and no shared arrival bonus.  Agents
-    who have already reached the target receive zero reward on subsequent steps
-    (no step penalty while frozen).  Pairwise interaction is only through the
-    underlying grid dynamics.
-
-    **Training:** set ``common_reward: false`` in EPyMARL so learners optimise
-    their own returns instead of a team sum.
+    Each agent independently navigates to the preset POI.  Rewards are built
+    solely from that agent's own position history — no team bonus, no shared
+    arrival signal.  Agents frozen after arrival receive no further rewards.
+    Set ``common_reward: false`` in EPyMARL.
     """
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
@@ -243,7 +206,6 @@ class GridNegotiationGymEnv(gym.Env):
                 spawn, spawn, self._env.poi_positions, self._env.obstacle_map, cfg
             )
             self._poi_scores[agent] = scores
-            self._env.poi_scores[agent] = scores
 
         self._optimal_poi = optimal_poi(self._poi_scores, agents)
         self._agreed_poi = self._optimal_poi
