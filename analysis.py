@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Shim: use the `analysis` package CLI.
+"""ThessLink RL — W&B analysis.
 
-  python analysis.py runs --version w6
-  python analysis.py runs --version g64 --metrics-source history
-  python analysis.py runs --version g64 --metrics-source summary
-  python -m analysis compare-versions -V w6 w7 --state finished
+  python analysis.py w6            # last run per algo for w6
+  python analysis.py w6 w7         # compare w6 (neg+nav specialists) vs w7 (full)
+  python analysis.py w6 --best     # best run per algo instead of last
 """
 
 from analysis.cli import main

@@ -7,6 +7,21 @@ import os
 WANDB_ENTITY = os.environ.get("WANDB_ENTITY", "aid26006-university-of-macedonia")
 WANDB_PROJECT = os.environ.get("WANDB_PROJECT", "thesslink-rl")
 
+
+def _parse_positive_int(env_name: str, default: int) -> int:
+    raw = os.environ.get(env_name)
+    if not raw:
+        return default
+    try:
+        v = int(raw)
+        return v if v > 0 else default
+    except ValueError:
+        return default
+
+
+# Uniform ``run.history`` samples per run; higher = closer to true best checkpoint on long runs.
+HISTORY_SAMPLES = _parse_positive_int("ANALYSIS_HISTORY_SAMPLES", 2000)
+
 ALGOS = ("iql", "qmix", "mappo")
 
 NAV_METRICS = [

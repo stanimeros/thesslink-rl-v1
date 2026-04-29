@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime
 
-from .config import ALGOS, STATE_ICON, all_logged_test_metric_keys, metric_objective
+from .config import ALGOS, HISTORY_SAMPLES, STATE_ICON, all_logged_test_metric_keys, metric_objective
 from .wandb_runs import detect_algo
 
 _history_cache: dict = {}
 # One sampled ``run.history`` per run id (uniform samples; fast on long / live runs).
-_HISTORY_SAMPLES = 500
 _run_series: dict[str, dict[str, list[float]]] = {}
 _run_q_on_win_ratios: dict[str, list[float]] = {}
 
@@ -26,6 +26,31 @@ def val(run, key: str | None) -> float | None:
     return run.summary.get(key)
 
 
+def _wandb_time_to_ts(v: object) -> float:
+    if hasattr(v, "timestamp") and callable(getattr(v, "timestamp")):
+        try:
+            return float(v.timestamp())  # type: ignore[no-any-return]
+        except Exception:
+            pass
+    if isinstance(v, str) and v:
+        s = v.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(s).timestamp()
+        except ValueError:
+            pass
+    return 0.0
+
+
+def _run_recency_ts(run: object) -> float:
+    """Latest known wall time for a W&B run (for ``last run per algo``)."""
+    best = 0.0
+    for attr in ("updated_at", "heartbeatAt", "heartbeat_at", "created_at"):
+        t = _wandb_time_to_ts(getattr(run, attr, None))
+        if t:
+            best = max(best, t)
+    return best
+
+
 def _ensure_run_series(run) -> dict[str, list[float]]:
     """Populate per-run series from a **uniform sample** of W&B steps (``run.history``).
 
@@ -40,7 +65,7 @@ def _ensure_run_series(run) -> dict[str, list[float]]:
     q_ratios: list[float] = []
     try:
         key_list = sorted(keys)
-        rows = run.history(samples=_HISTORY_SAMPLES, keys=key_list, pandas=False)
+        rows = run.history(samples=HISTORY_SAMPLES, keys=key_list, pandas=False)
         for row in rows:
             for k in keys:
                 v = row.get(k)
@@ -163,21 +188,27 @@ def trend_indicator(run, key: str | None, window_frac: float = 0.25, min_delta: 
 
 
 def metric_value(run, lbl: str, key: str | None, *, metrics_source: str = "history") -> float | None:
-    """Scalar for sorting / tie-break (summary mode, or history *last* / summary)."""
+    """Scalar for sorting / filters (summary = W&B summary; history = best checkpoint in sampled curves).
+
+    For ``metrics_source=history``, prefers the extremum (peak for max metrics, trough for lengths)
+    over the final logged point, so late training collapse does not dominate scores.
+    """
     if lbl == "q_on_win":
         if metrics_source == "summary":
             nq = val(run, "test_navigation_quality_mean")
             bw = val(run, "test_battle_won_mean")
             return (nq / bw) if (nq is not None and bw and bw > 0) else None
-        _, last = peak_last_q_on_win(run)
-        if last is not None:
-            return last
+        peak, _last = peak_last_q_on_win(run)
+        if peak is not None:
+            return float(peak)
         nq = val(run, "test_navigation_quality_mean")
         bw = val(run, "test_battle_won_mean")
         return (nq / bw) if (nq is not None and bw and bw > 0) else None
     if metrics_source == "summary":
         return val(run, key)
-    _, last_h = peak_last_for_key(run, key)
+    peak_h, last_h = peak_last_for_key(run, key)
+    if peak_h is not None:
+        return float(peak_h)
     last_summary = val(run, key)
     last = last_summary if last_summary is not None else last_h
     if last is not None:
@@ -259,9 +290,9 @@ def print_section(
     print(f"  {title}")
     if metrics_source == "history":
         print(
-            f"  Metrics: sampled peak → W&B summary (last); ~{_HISTORY_SAMPLES} uniform "
-            "``run.history`` steps per run (fast; extrema are within that sample). "
-            "Length columns: lower peak is better. Use ``--metrics-source summary`` for summary only."
+            f"  Metrics: sampled best checkpoint (peak) → W&B summary (last); ~{HISTORY_SAMPLES} uniform "
+            "``run.history`` steps per run (extrema are approximate; set ANALYSIS_HISTORY_SAMPLES for denser sampling). "
+            "Length columns: lower peak is better. Use ``--metrics-source summary`` for final summary only."
         )
     print(f"{'═' * divider_w}")
     print(header)
@@ -378,5 +409,25 @@ def best_run_per_algo(
         if a not in by_algo:
             continue
         ranked = sorted(by_algo[a], key=primary_score, reverse=True)
+        out[a] = ranked[0]
+    return out
+
+
+def last_run_per_algo(runs: list) -> dict[str, object]:
+    """One run per algorithm: most recent by W&B ``updated_at`` / ``created_at`` (etc.)."""
+    by_algo: dict[str, list] = defaultdict(list)
+    for run in runs:
+        a = detect_algo(run)
+        if a:
+            by_algo[a].append(run)
+    out: dict[str, object] = {}
+    for a in ALGOS:
+        if a not in by_algo:
+            continue
+        ranked = sorted(
+            by_algo[a],
+            key=lambda r: (_run_recency_ts(r), getattr(r, "id", "") or ""),
+            reverse=True,
+        )
         out[a] = ranked[0]
     return out

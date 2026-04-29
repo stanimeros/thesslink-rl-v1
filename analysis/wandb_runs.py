@@ -7,7 +7,7 @@ from .config import ALGOS
 
 def fetch_runs(api, entity: str, project: str, version: str, algo: str | None, state: str):
     filters: dict = {}
-    if state != "all":
+    if state not in ("all", "active"):
         filters["state"] = state
     all_runs = api.runs(f"{entity}/{project}", filters=filters)
 
@@ -35,6 +35,9 @@ def fetch_runs(api, entity: str, project: str, version: str, algo: str | None, s
                 continue
 
         matched.append(run)
+
+    if state == "active":
+        matched = [r for r in matched if getattr(r, "state", None) in ("running", "finished")]
     return matched
 
 
