@@ -121,17 +121,6 @@ def _bfs_neighbors_norm(
     return result
 
 
-def _agent_poi_preference_quality(scores: np.ndarray, poi_idx: int) -> float:
-    """How much *this* agent values the agreed POI vs their own best POI, in ``[0, 1]``.
-
-    Used for arrival credit under ``common_reward=False`` so one agent's negotiated
-    outcome does not scale the other's arrival bonus (unlike joint ``negotiation_quality``).
-    """
-    best = float(np.max(scores))
-    if best < 1e-12:
-        return 0.0
-    return float(np.clip(float(scores[poi_idx]) / best, 0.0, 1.0))
-
 
 def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray, norm_dist: float) -> float:
     """Potential phi = -d / norm_dist, in [-1, 0].
@@ -175,7 +164,7 @@ class GridNegotiationGymEnv(gym.Env):
         time_limit: int = 512,
         shaping_gamma: float = 0.99,
         step_penalty: float = -0.001,
-        arrival_scale: float = 25.0,
+        arrival_bonus: float = 25.0,
         timeout_penalty: float = -8.0,
         **kwargs: Any,
     ):
@@ -201,7 +190,7 @@ class GridNegotiationGymEnv(gym.Env):
         self._time_limit = time_limit
         self._shaping_gamma = shaping_gamma
         self._step_penalty = step_penalty
-        self._arrival_scale = arrival_scale
+        self._arrival_bonus = arrival_bonus
         self._timeout_penalty = timeout_penalty
         self.n_agents = NUM_AGENTS
         self.action_space = spaces.Tuple(
@@ -316,10 +305,7 @@ class GridNegotiationGymEnv(gym.Env):
 
             if self._env.agents_reached.get(a, False) and not self._individual_arrived[a]:
                 self._individual_arrived[a] = True
-                aq = _agent_poi_preference_quality(
-                    self._poi_scores[a], int(self._agreed_poi)
-                )
-                rewards[i] += aq * self._arrival_scale
+                rewards[i] += self._arrival_bonus
 
         all_reached = all(self._env.agents_reached[a] for a in agents)
 
