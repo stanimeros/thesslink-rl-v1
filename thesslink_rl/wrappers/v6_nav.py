@@ -32,15 +32,15 @@ Improvements over v5:
    shortest path rather than discovering it purely through reward signals.
    Walls, obstacles, and out-of-bounds cells are encoded as 2.0 (unreachable).
 
-Observation layout (size 17):
-  self_pos        (2)  (row, col) normalised to [0, 1]
-  relative_pos    (2)  (target - self) / (grid_size - 1)
-  lidar_card      (4)  N, S, E, W
-  lidar_diag      (4)  NE, SE, SW, NW
+Observation layout (size 5):
   bfs_dist_norm   (1)  remaining shortest-path steps to target / initial BFS dist,
                        clipped to [0, 2] (inf unreachable → 1)
   bfs_neighbors   (4)  BFS dist of N/S/E/W neighbour / initial BFS dist,
-                       clipped to [0, 2]; walls/obstacles → 2.0
+                       clipped to [0, 2]; walls/obstacles/out-of-bounds → 2.0
+
+Self position, relative target position, and lidar are all removed: the BFS
+features already encode target direction, obstacle avoidance, and path structure
+implicitly.  Fewer noise features → faster convergence.
 """
 
 from __future__ import annotations
@@ -69,37 +69,13 @@ from ..environments.v3 import (
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent
 
-# self_pos(2) + relative_pos(2) + lidar_card(4) + lidar_diag(4) + bfs_dist_norm(1) + bfs_neighbors(4)
-OBS_FLAT_SIZE_V6 = 17
+# bfs_dist_norm(1) + bfs_neighbors(4)
+OBS_FLAT_SIZE_V6 = 5
 
-# Per-dim bounds: bfs features may exceed 1.0 when agent moves away from target (clipped at 2).
-_OBS_LOW_V6 = np.array(
-    [-1.0, -1.0, -1.0, -1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-    dtype=np.float32,
-)
-_OBS_HIGH_V6 = np.array(
-    [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0, 2.0],
-    dtype=np.float32,
-)
+# All features are normalised BFS distances in [0, 2].
+_OBS_LOW_V6 = np.zeros(5, dtype=np.float32)
+_OBS_HIGH_V6 = np.full(5, 2.0, dtype=np.float32)
 
-
-def _diag_lidar(obstacle_map: np.ndarray, grid_size: int, r: int, c: int) -> np.ndarray:
-    """Cast rays in NE, SE, SW, NW; return normalised distance to nearest obstacle."""
-    directions = [(-1, 1), (1, 1), (1, -1), (-1, -1)]  # NE, SE, SW, NW
-    distances = np.ones(4, dtype=np.float32)
-    max_dist = grid_size - 1
-    for i, (dr, dc) in enumerate(directions):
-        for step in range(1, grid_size):
-            nr, nc = r + dr * step, c + dc * step
-            if nr < 0 or nr >= grid_size or nc < 0 or nc >= grid_size:
-                distances[i] = step / max_dist
-                break
-            if obstacle_map[nr, nc]:
-                distances[i] = step / max_dist
-                break
-        else:
-            distances[i] = 1.0
-    return distances
 
 
 def _bfs_remaining_norm(
@@ -254,33 +230,18 @@ class GridNegotiationGymEnv(gym.Env):
         self._nav_steps: int = 0
 
     def _get_nav_obs(self, agents: list[str]) -> tuple[np.ndarray, ...]:
-        """Build minimal nav obs: self_pos + relative_pos + 8-dir lidar + BFS dist norm."""
+        """Build BFS-only nav obs: bfs_dist_norm + bfs_neighbors (N/S/E/W)."""
         obs_list = []
-        norm = self._grid_size - 1
         assert self._target_bfs is not None
         for a in agents:
             r, c = self._env.agent_positions[a]
-
-            self_pos = np.array([r / norm, c / norm], dtype=np.float32)
-
-            relative_pos = np.zeros(2, dtype=np.float32)
-            if self._agreed_poi is not None:
-                tr, tc = self._env.poi_positions[self._agreed_poi]
-                relative_pos[0] = (tr - r) / norm
-                relative_pos[1] = (tc - c) / norm
-
-            card = self._env._lidar(r, c)
-            diag = _diag_lidar(self._env.obstacle_map, self._grid_size, r, c)
             bfs_n = _bfs_remaining_norm(self._target_bfs, self._initial_dist, a, r, c)
             bfs_nb = _bfs_neighbors_norm(
                 self._target_bfs, self._initial_dist[a], self._grid_size,
                 self._env.obstacle_map, r, c,
             )
-
             obs_list.append(
-                np.concatenate(
-                    [self_pos, relative_pos, card, diag, np.array([bfs_n], dtype=np.float32), bfs_nb]
-                )
+                np.concatenate([np.array([bfs_n], dtype=np.float32), bfs_nb])
             )
         return tuple(obs_list)
 
