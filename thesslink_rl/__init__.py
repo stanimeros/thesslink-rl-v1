@@ -38,5 +38,6 @@ register(id="thesslink/ThessLink-e3-w6-neg-v1-g32", entry_point="thesslink_rl.wr
 register(id="thesslink/ThessLink-e3-w6-nav-v1-g64", entry_point="thesslink_rl.wrappers.v6_nav:GridNegotiationGymEnv", kwargs={"grid_size": 64})
 register(id="thesslink/ThessLink-e3-w6-neg-v1-g64", entry_point="thesslink_rl.wrappers.v6_neg:GridNegotiationGymEnv", kwargs={"grid_size": 64})
 
-# ── Environment v3 — full episode w7: phase_flag + v6_neg + v6_nav rewards ───
+# ── Environment v3 — full episode w7: v6_neg (neg) + v6_nav GPS obs (nav) ────
 register(id="thesslink/ThessLink-e3-w7-full-v1-g32", entry_point="thesslink_rl.wrappers.v7_full:GridNegotiationGymEnv", kwargs={"grid_size": 32})
+register(id="thesslink/ThessLink-e3-w7-full-v1-g64", entry_point="thesslink_rl.wrappers.v7_full:GridNegotiationGymEnv", kwargs={"grid_size": 64})

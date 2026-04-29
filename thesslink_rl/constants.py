@@ -18,4 +18,4 @@ PLOTS_DIR = PROJECT_ROOT / "plots"
 AGENT_CONFIG_YAMLS = PACKAGE_ROOT / "models"
 
 # All algorithms launched together by ``train.sh`` / ``smoke_test.py``.
-TRAINING_ALGOS: tuple[str, ...] = ("iql", "qmix", "mappo", "ippo")
+TRAINING_ALGOS: tuple[str, ...] = ("iql", "qmix", "mappo")

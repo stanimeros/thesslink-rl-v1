@@ -7,7 +7,7 @@ import os
 WANDB_ENTITY = os.environ.get("WANDB_ENTITY", "aid26006-university-of-macedonia")
 WANDB_PROJECT = os.environ.get("WANDB_PROJECT", "thesslink-rl")
 
-ALGOS = ("iql", "qmix", "mappo", "ippo", "maddpg")
+ALGOS = ("iql", "qmix", "mappo")
 
 NAV_METRICS = [
     ("nav_quality", "test_navigation_quality_mean"),

@@ -1,18 +1,19 @@
 """Gymnasium multi-agent wrapper for EPyMARL — v7 full (negotiation → navigation).
 
-Combines v6_neg and v6_nav reward logic into a single two-phase episode.
-A ``phase_flag`` feature is prepended to every agent observation so that a
-shared policy can distinguish the two phases without ambiguity.
+Combines v6_neg and v6_nav as a single two-phase episode.
 
-Observation layout (size 23):
+Observation layout (size 16):
   phase_flag     (1)   0.0 = negotiation, 1.0 = navigation
+
+  --- negotiation features (v6_neg obs) ---
   self_scores    (3)   agent's POI preference scores
   peer_action    (4)   one-hot last peer action [no_action, s0, s1, s2]
   agreed_poi     (3)   one-hot agreed POI (zeros until agreement)
-  self_pos       (2)   (row, col) normalised to [0, 1]
-  relative_pos   (2)   (target − self) / (grid_size − 1); zero before agreement
-  lidar_card     (4)   N, S, E, W distances normalised to [0, 1]
-  lidar_diag     (4)   NE, SE, SW, NW distances normalised to [0, 1]
+
+  --- navigation features (v6_nav obs; zeros during negotiation) ---
+  gps            (4)   one-hot optimal BFS direction [N, S, E, W];
+                       multi-hot on ties, all zeros when at target
+  bfs_dist_norm  (1)   remaining BFS steps / initial BFS steps, clipped [0, 2]
 
 Phase 1 — Negotiation (v6_neg reward logic):
   step_penalty per active-agent turn
@@ -24,10 +25,9 @@ Phase 1 — Negotiation (v6_neg reward logic):
   On timeout:    neg_timeout_penalty to all agents
 
 Phase 2 — Navigation (v6_nav reward logic):
-  Per-agent potential-based shaping normalised by own initial BFS distance
+  per-agent potential-based shaping normalised by own initial BFS distance
   nav_step_penalty per live (not-yet-arrived) agent per step
-  first_arrival_bonus to the first agent that reaches the POI
-  arrival_scale * quality when each individual agent reaches the POI
+  arrival_bonus * negotiation_quality when each individual agent reaches the POI
   nav_timeout_penalty to each agent that did not arrive within nav_time_limit
 """
 
@@ -62,36 +62,12 @@ from ..environments.v3 import (
 
 _PACKAGE_DIR = Path(__file__).resolve().parent.parent
 
-# phase_flag(1) + self_scores(3) + peer_action(4) + agreed_poi(3)
-# + self_pos(2) + relative_pos(2) + lidar_card(4) + lidar_diag(4)
-OBS_FLAT_SIZE_V8 = 1 + NUM_POIS + PEER_ACTION_DIM + NUM_POIS + 2 + 2 + 4 + 4  # 23
-
-
-def _diag_lidar(obstacle_map: np.ndarray, grid_size: int, r: int, c: int) -> np.ndarray:
-    """Cast rays in NE, SE, SW, NW; return normalised distance to nearest obstacle."""
-    directions = [(-1, 1), (1, 1), (1, -1), (-1, -1)]  # NE, SE, SW, NW
-    distances = np.ones(4, dtype=np.float32)
-    max_dist = grid_size - 1
-    for i, (dr, dc) in enumerate(directions):
-        for step in range(1, grid_size):
-            nr, nc = r + dr * step, c + dc * step
-            if nr < 0 or nr >= grid_size or nc < 0 or nc >= grid_size:
-                distances[i] = step / max_dist
-                break
-            if obstacle_map[nr, nc]:
-                distances[i] = step / max_dist
-                break
-        else:
-            distances[i] = 1.0
-    return distances
+# phase_flag(1) + self_scores(3) + peer_action(4) + agreed_poi(3) + gps(4) + bfs_dist_norm(1)
+OBS_FLAT_SIZE_V7 = 1 + NUM_POIS + PEER_ACTION_DIM + NUM_POIS + 4 + 1  # 16
 
 
 def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray, norm_dist: float) -> float:
-    """Phi = -d / norm_dist in [-1, 0].  0 at goal, -1 when unreachable.
-
-    norm_dist is each agent's own initial BFS distance, giving a consistent
-    per-step gradient regardless of episode difficulty.
-    """
+    """Phi = -d / norm_dist in [-1, 0].  0 at goal, -1 when unreachable."""
     if norm_dist <= 0:
         return 0.0
     d = bfs_grid[agent_pos[0], agent_pos[1]]
@@ -100,8 +76,49 @@ def _potential(agent_pos: tuple[int, int], bfs_grid: np.ndarray, norm_dist: floa
     return -d / norm_dist
 
 
+def _bfs_remaining_norm(
+    target_bfs: np.ndarray,
+    initial_dist: Dict[str, float],
+    agent: str,
+    r: int,
+    c: int,
+) -> float:
+    """Normalised remaining geodesic distance: current_bfs / initial_bfs, clipped [0, 2]."""
+    d = float(target_bfs[r, c])
+    idist = max(float(initial_dist.get(agent, 1.0)), 1e-6)
+    if not np.isfinite(d) or np.isinf(d):
+        return 1.0
+    return float(np.clip(d / idist, 0.0, 2.0))
+
+
+def _gps_onehot(
+    target_bfs: np.ndarray,
+    grid_size: int,
+    obstacle_map: np.ndarray,
+    r: int,
+    c: int,
+) -> np.ndarray:
+    """One-hot GPS: which cardinal direction(s) minimise BFS distance to target.
+
+    Returns shape-(4,) binary array [N, S, E, W].  Multiple bits are set when
+    directions tie for the minimum.  All zeros when at target or fully surrounded.
+    """
+    bfs_vals = []
+    for dr, dc in [(-1, 0), (1, 0), (0, 1), (0, -1)]:  # N, S, E, W
+        nr, nc = r + dr, c + dc
+        if 0 <= nr < grid_size and 0 <= nc < grid_size and not obstacle_map[nr, nc]:
+            d = float(target_bfs[nr, nc])
+            bfs_vals.append(d if np.isfinite(d) else np.inf)
+        else:
+            bfs_vals.append(np.inf)
+    min_val = min(bfs_vals)
+    if np.isinf(min_val):
+        return np.zeros(4, dtype=np.float32)
+    return np.array([1.0 if v == min_val else 0.0 for v in bfs_vals], dtype=np.float32)
+
+
 class GridNegotiationGymEnv(gym.Env):
-    """Full two-phase env (negotiation → navigation) with v6 reward logic (w7)."""
+    """Full two-phase env (negotiation → navigation) combining v6_neg + v6_nav (w7)."""
 
     metadata = {"render_modes": ["human"], "render_fps": 5}
 
@@ -114,21 +131,20 @@ class GridNegotiationGymEnv(gym.Env):
         grid_size: int = GRID_SIZE,
         # ── Negotiation params (v6_neg) ──────────────────────────────────
         step_penalty: float = -0.05,
-        suggest_bonus: float = 0.2,
+        suggest_bonus: float = 0.15,
         accept_bonus: float = 1.5,
-        convergence_bonus: float = 0.5,
-        optimal_agreement_bonus: float = 35.0,
-        suboptimal_agreement_bonus: float = 0.0,
-        wrong_agreement_penalty: float = -12.0,
-        neg_timeout_penalty: float = -5.0,
+        convergence_bonus: float = 0.3,
+        optimal_agreement_bonus: float = 25.0,
+        suboptimal_agreement_bonus: float = 0.5,
+        wrong_agreement_penalty: float = -8.0,
+        neg_timeout_penalty: float = -8.0,
         neg_time_limit: int = 32,
         # ── Navigation params (v6_nav) ───────────────────────────────────
         shaping_gamma: float = 0.99,
-        nav_step_penalty: float = -0.001,
-        arrival_scale: float = 25.0,
-        nav_timeout_penalty: float = -8.0,
-        first_arrival_bonus: float = 5.0,
-        nav_time_limit: int = 320,
+        nav_step_penalty: float = -0.002,
+        arrival_bonus: float = 50.0,
+        nav_timeout_penalty: float = -12.0,
+        nav_time_limit: int = 512,
         **kwargs: Any,
     ):
         super().__init__()
@@ -159,9 +175,8 @@ class GridNegotiationGymEnv(gym.Env):
         # Navigation params
         self._shaping_gamma = shaping_gamma
         self._nav_step_penalty = nav_step_penalty
-        self._arrival_scale = arrival_scale
+        self._arrival_bonus = arrival_bonus
         self._nav_timeout_penalty = nav_timeout_penalty
-        self._first_arrival_bonus = first_arrival_bonus
         self._nav_time_limit = nav_time_limit
 
         self.n_agents = NUM_AGENTS
@@ -170,7 +185,7 @@ class GridNegotiationGymEnv(gym.Env):
         )
         self.observation_space = spaces.Tuple(
             tuple(
-                spaces.Box(low=-1.0, high=1.0, shape=(OBS_FLAT_SIZE_V8,), dtype=np.float32)
+                spaces.Box(low=-1.0, high=2.0, shape=(OBS_FLAT_SIZE_V7,), dtype=np.float32)
                 for _ in range(self.n_agents)
             )
         )
@@ -188,22 +203,21 @@ class GridNegotiationGymEnv(gym.Env):
         self._individual_arrived: Dict[str, bool] = {}
         self._initial_dist: Dict[str, float] = {}
         self._nav_steps: int = 0
-        self._first_arrived: bool = False
 
     # ── Observation builder ───────────────────────────────────────────────────
 
     def _get_obs(self, agents: list[str]) -> tuple[np.ndarray, ...]:
-        """Build unified obs for both phases (size 23).
+        """Build unified 16-feature obs for both phases.
 
-        All features are populated at every step.  The phase_flag guides the
-        policy on which feature subset is meaningful this turn.
+        phase_flag(1) + neg_obs(10) + nav_obs(5).
+        Navigation features are zeros during negotiation phase.
         """
-        phase_flag = np.array(
-            [1.0 if self._env.phase == "navigation" else 0.0], dtype=np.float32
-        )
-        norm = self._grid_size - 1
+        is_nav = self._env.phase == "navigation"
+        phase_flag = np.array([1.0 if is_nav else 0.0], dtype=np.float32)
+
         obs_list = []
         for a in agents:
+            # --- Negotiation features (always populated) ---
             own_scores = self._poi_scores.get(a, np.zeros(NUM_POIS, dtype=np.float32))
 
             peer = [x for x in agents if x != a][0]
@@ -217,21 +231,19 @@ class GridNegotiationGymEnv(gym.Env):
             if self._env.agreed_poi is not None:
                 agreed_onehot[self._env.agreed_poi] = 1.0
 
-            r, c = self._env.agent_positions[a]
-            self_pos = np.array([r / norm, c / norm], dtype=np.float32)
-
-            relative_pos = np.zeros(2, dtype=np.float32)
-            if self._agreed_poi is not None:
-                tr, tc = self._env.poi_positions[self._agreed_poi]
-                relative_pos[0] = (tr - r) / norm
-                relative_pos[1] = (tc - c) / norm
-
-            card = self._env._lidar(r, c)
-            diag = _diag_lidar(self._env.obstacle_map, self._grid_size, r, c)
+            # --- Navigation features (zeros until navigation phase) ---
+            if is_nav and self._target_bfs is not None:
+                r, c = self._env.agent_positions[a]
+                gps = _gps_onehot(
+                    self._target_bfs, self._grid_size, self._env.obstacle_map, r, c
+                )
+                bfs_n = _bfs_remaining_norm(self._target_bfs, self._initial_dist, a, r, c)
+                nav_obs = np.concatenate([gps, np.array([bfs_n], dtype=np.float32)])
+            else:
+                nav_obs = np.zeros(5, dtype=np.float32)
 
             obs_list.append(
-                np.concatenate([phase_flag, own_scores, peer_action, agreed_onehot,
-                                self_pos, relative_pos, card, diag])
+                np.concatenate([phase_flag, own_scores, peer_action, agreed_onehot, nav_obs])
             )
         return tuple(obs_list)
 
@@ -266,7 +278,6 @@ class GridNegotiationGymEnv(gym.Env):
         self._individual_arrived = {a: False for a in agents}
         self._initial_dist = {}
         self._nav_steps = 0
-        self._first_arrived = False
 
         info = {
             "poi_scores": {k: v.tolist() for k, v in self._poi_scores.items()},
@@ -289,7 +300,7 @@ class GridNegotiationGymEnv(gym.Env):
         self._env.step(actions_dict)
         rewards = [0.0] * self.n_agents
 
-        # ── Negotiation rewards (v6_neg logic) ───────────────────────────
+        # ── Negotiation rewards (v6_neg logic) ────────────────────────────
         if prev_phase == "negotiation" and prev_neg_turn is not None:
             self._negotiation_length += 1
             active = prev_neg_turn
@@ -349,10 +360,7 @@ class GridNegotiationGymEnv(gym.Env):
 
                 if self._env.agents_reached.get(a, False) and not self._individual_arrived[a]:
                     self._individual_arrived[a] = True
-                    if not self._first_arrived:
-                        self._first_arrived = True
-                        rewards[i] += self._first_arrival_bonus
-                    rewards[i] += quality * self._arrival_scale
+                    rewards[i] += quality * self._arrival_bonus
 
         # ── Termination ───────────────────────────────────────────────────
         all_reached = all(self._env.agents_reached.get(a, False) for a in agents)
