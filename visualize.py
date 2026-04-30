@@ -24,6 +24,7 @@ from thesslink_rl.checkpoints import (
     find_best_checkpoint_timestep_dir,
     load_epymarl_config_for_algo,
     rollout_episode_frames_for_gif,
+    rollout_two_phase_frames_for_gif,
     test_reward_series,
 )
 from thesslink_rl.evaluation import AgentConfig, compute_poi_scores
@@ -227,25 +228,159 @@ def print_summary(runs: dict[str, dict]):
     print()
 
 
+def _build_vis_choices() -> tuple[list[dict], list[dict]]:
+    """Return (full_entries, merged_pairs).
+
+    full_entries: catalog entries where env_config contains '_full_' or ends with '_full'.
+    merged_pairs: synthetic entries for neg+nav specialist pairs, keyed by a shared prefix.
+    Each merged entry has keys: alias, neg_env_config, nav_env_config.
+    """
+    from thesslink_rl.env_catalog import available_env_catalog
+    catalog = available_env_catalog()
+
+    full_entries = [e for e in catalog if "_full" in e["env_config"]]
+
+    # Find neg/nav pairs: group by stripping _neg_ / _nav_ to get shared key.
+    import re
+    neg_map: dict[str, str] = {}
+    nav_map: dict[str, str] = {}
+    for e in catalog:
+        ec = e["env_config"]
+        key = re.sub(r"_(neg|nav)_", "_", ec)
+        if "_neg_" in ec:
+            neg_map[key] = ec
+        elif "_nav_" in ec:
+            nav_map[key] = ec
+
+    merged_pairs = []
+    for key in sorted(neg_map.keys() & nav_map.keys()):
+        # e.g. thesslink_e3_w6_v1_g64 → e3_w6_merged_v1_g64
+        raw = re.sub(r"(_v\d+_)", r"_merged\1", key)
+        alias = re.sub(r"^thesslink_", "", raw)
+        merged_pairs.append({
+            "alias": alias,
+            "neg_env_config": neg_map[key],
+            "nav_env_config": nav_map[key],
+        })
+
+    return full_entries, merged_pairs
+
+
+def _all_choices() -> list[dict]:
+    """Flat ordered list of all selectable options with a numeric index each."""
+    full_entries, merged_pairs = _build_vis_choices()
+    choices = []
+    for e in full_entries:
+        choices.append({"kind": "full", "alias": e["alias"], "env_config": e["env_config"]})
+    for mp in merged_pairs:
+        choices.append({"kind": "merged", "alias": mp["alias"],
+                        "neg_env_config": mp["neg_env_config"],
+                        "nav_env_config": mp["nav_env_config"]})
+    for i, c in enumerate(choices):
+        c["index"] = i
+    return choices
+
+
+def _vis_choices_prompt() -> str:
+    return ", ".join(f"{c['index']}:{c['alias']}" for c in _all_choices())
+
+
 def _resolve_env_selector(cli_env: str | None) -> str:
+    """Return env_config string, or 'merged:<neg_env>:<nav_env>' sentinel."""
+    choices = _all_choices()
+    prompt = _vis_choices_prompt()
+
+    def _try_resolve(raw: str) -> str | None:
+        if raw.isdigit():
+            idx = int(raw)
+            for c in choices:
+                if c["index"] == idx:
+                    if c["kind"] == "full":
+                        return c["env_config"]
+                    return f"merged:{c['neg_env_config']}:{c['nav_env_config']}"
+        for c in choices:
+            if raw.lower() in (str(c["index"]), c["alias"].lower(), c.get("env_config", "").lower()):
+                if c["kind"] == "full":
+                    return c["env_config"]
+                return f"merged:{c['neg_env_config']}:{c['nav_env_config']}"
+        return None
+
     if cli_env is not None:
-        try:
-            return resolve_env_choice(cli_env)["env_config"]
-        except ValueError:
-            print(f"Invalid --env. Use one of: {prompt_help()}.", file=sys.stderr)
-            sys.exit(1)
+        result = _try_resolve(cli_env)
+        if result:
+            return result
+        print(f"Invalid --env. Use one of: {prompt}.", file=sys.stderr)
+        sys.exit(1)
+
     if sys.stdin.isatty():
         while True:
-            raw = input(f"ThessLink env selector [{prompt_help()}]: ").strip()
-            try:
-                return resolve_env_choice(raw)["env_config"]
-            except ValueError:
-                print(f"  Enter one of: {prompt_help()}.", file=sys.stderr)
-    print(
-        f"Error: pass --env one of {prompt_help()} (non-interactive).",
-        file=sys.stderr,
-    )
+            raw = input(f"ThessLink env selector [{prompt}]: ").strip()
+            result = _try_resolve(raw)
+            if result:
+                return result
+            print(f"  Enter one of: {prompt}.", file=sys.stderr)
+
+    print(f"Error: pass --env one of {prompt} (non-interactive).", file=sys.stderr)
     sys.exit(1)
+
+
+def _discover_runs_for_env(env_config: str) -> tuple[dict, str]:
+    """Switch THESSLINK_ENV, reload config, discover Sacred runs. Returns (runs, sacred_marker)."""
+    import importlib
+    os.environ["THESSLINK_ENV"] = env_config
+    import config as _cfg_mod
+    importlib.reload(_cfg_mod)
+    marker = _cfg_mod.ENV_SACRED_MARKER
+    runs = discover_runs(RESULTS_DIR)
+    return runs, marker
+
+
+def generate_merged_replays(algos: list[str], neg_env_config: str, nav_env_config: str) -> None:
+    """Generate per-algo GIFs by chaining neg specialist → nav specialist."""
+    from thesslink_rl.constants import AGENT_CONFIG_YAMLS
+
+    neg_runs, neg_marker = _discover_runs_for_env(neg_env_config)
+    nav_runs, nav_marker = _discover_runs_for_env(nav_env_config)
+
+    # Reload neg env config for rendering context (GridNegotiationEnv + grid size).
+    import importlib
+    os.environ["THESSLINK_ENV"] = neg_env_config
+    import config as _cfg_mod
+    importlib.reload(_cfg_mod)
+    from config import GridNegotiationEnv, ENV_GRID_SIZE  # type: ignore[import]
+
+    cfg_0 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "human.yaml"))
+    cfg_1 = AgentConfig.from_yaml(str(AGENT_CONFIG_YAMLS / "taxi.yaml"))
+    agent_configs = {"agent_0": cfg_0, "agent_1": cfg_1}
+    render_env = GridNegotiationEnv(agent_configs=agent_configs, seed=SEED, grid_size=ENV_GRID_SIZE)
+    render_env.reset(seed=SEED)
+
+    for raw_algo in algos:
+        algo = raw_algo.lower()
+        neg_metrics = neg_runs.get(algo, {})
+        nav_metrics = nav_runs.get(algo, {})
+        neg_ckpt = find_best_checkpoint_timestep_dir(algo, RESULTS_DIR, neg_metrics, neg_marker)
+        nav_ckpt = find_best_checkpoint_timestep_dir(algo, RESULTS_DIR, nav_metrics, nav_marker)
+        if neg_ckpt is None or nav_ckpt is None:
+            missing = []
+            if neg_ckpt is None:
+                missing.append(f"neg ({neg_marker})")
+            if nav_ckpt is None:
+                missing.append(f"nav ({nav_marker})")
+            print(f"  merged replay ({algo}): skipped — missing checkpoint(s): {', '.join(missing)}")
+            continue
+        try:
+            neg_cfg = load_epymarl_config_for_algo(algo, neg_env_config, SEED)
+            nav_cfg = load_epymarl_config_for_algo(algo, nav_env_config, SEED)
+            frames = rollout_two_phase_frames_for_gif(
+                neg_ckpt, nav_ckpt, neg_cfg, nav_cfg, SEED, capture_frame, describe_actions
+            )
+            print(f"  merged replay ({algo}): {len(frames)} frames → neg={neg_ckpt.name}, nav={nav_ckpt.name}")
+            tag = f"{algo}_merged"
+            replay_episode(frames, render_env, agent_configs=agent_configs, algo=tag, env_name="v6_merged")
+            print(f"  -> plots/merged/episode_replay-merged-{tag}.gif")
+        except Exception as e:
+            print(f"  merged replay ({algo}): failed — {e!r}")
 
 
 def main():
@@ -255,11 +390,27 @@ def main():
         type=str,
         default=None,
         metavar="ENV",
-        help="ThessLink env selector (see env_catalog), e.g. 0,1,2,v3_neg,v3_nav,v4_neg,v4_nav.",
+        help="Use index or alias from prompt (full envs + merged pairs).",
     )
     args = parser.parse_args()
 
     env_selector = _resolve_env_selector(args.env)
+
+    # Merged mode: sentinel is "merged:<neg_env>:<nav_env>"
+    if env_selector.startswith("merged:"):
+        _, neg_env_config, nav_env_config = env_selector.split(":", 2)
+        print(f"Merged mode: {neg_env_config} (neg) + {nav_env_config} (nav) → single GIF per algo")
+        # Discover algos from neg Sacred results.
+        runs_neg, _ = _discover_runs_for_env(neg_env_config)
+        algos = sorted(runs_neg.keys()) if runs_neg else []
+        if not algos:
+            print("No Sacred results found for neg env — cannot generate merged GIFs.")
+            return
+        print(f"Found {len(algos)} algorithm(s): {', '.join(a.upper() for a in algos)}")
+        generate_merged_replays(algos, neg_env_config, nav_env_config)
+        print("Done! Outputs saved to plots/")
+        return
+
     os.environ["THESSLINK_ENV"] = env_selector
     from config import ENV_SELECTOR, ENV_TAG
 

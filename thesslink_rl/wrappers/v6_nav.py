@@ -208,7 +208,8 @@ class GridNegotiationGymEnv(gym.Env):
             self._poi_scores[agent] = scores
 
         self._optimal_poi = optimal_poi(self._poi_scores, agents)
-        self._agreed_poi = self._optimal_poi
+        forced = (options or {}).get("agreed_poi")
+        self._agreed_poi = int(forced) if forced is not None else self._optimal_poi
 
         self._env.agreed_poi = self._agreed_poi
         self._env.phase = "navigation"

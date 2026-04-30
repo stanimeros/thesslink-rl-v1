@@ -307,7 +307,7 @@ def replay_episode(
     agent_configs: Optional[Dict[str, AgentConfig]] = None,
     save_path: str | bool = True,
     neg_interval_ms: int = 1200,
-    nav_interval_ms: int = 250,
+    nav_interval_ms: int = 100,
     show: bool = False,
     algo: str | None = None,
     env_name: str | None = None,

@@ -200,6 +200,11 @@ def load_epymarl_config_for_algo(algo: str, env_config_name: str, seed: int) -> 
         _recursive_dict_update(config, yaml.safe_load(f))
     with open(cfg_dir / "algs" / f"{algo}.yaml") as f:
         _recursive_dict_update(config, yaml.safe_load(f))
+    # Project-level algo overrides (epymarl_config/algs/<algo>.yaml) take final precedence.
+    project_algo_yaml = PROJECT_ROOT / "epymarl_config" / "algs" / f"{algo}.yaml"
+    if project_algo_yaml.exists():
+        with open(project_algo_yaml) as f:
+            _recursive_dict_update(config, yaml.safe_load(f))
 
     config["seed"] = seed
     config["env_args"]["seed"] = seed
@@ -264,6 +269,8 @@ def rollout_episode_frames_for_gif(
     seed: int,
     capture_frame: Callable[..., dict],
     describe_actions: Callable[..., str],
+    *,
+    env_options: dict | None = None,
 ) -> list[dict]:
     """Load checkpoint and return frames compatible with ``visualization.replay_episode``."""
     import torch as th
@@ -338,9 +345,12 @@ def rollout_episode_frames_for_gif(
     # Ensure frame-0 starts from an explicit seed instead of depending on
     # any prior RNG consumption during runner/env setup.
     try:
-        runner.env.reset(seed=seed)
+        runner.env.reset(seed=seed, options=env_options)
     except TypeError:
-        runner.env.reset()
+        try:
+            runner.env.reset(seed=seed)
+        except TypeError:
+            runner.env.reset()
     grid = _unwrap_grid_negotiation(runner.env)
     frames: list[dict] = [capture_frame(grid)]
 
@@ -403,3 +413,141 @@ def rollout_episode_frames_for_gif(
 
     runner.close_env()
     return frames
+
+
+def _rollout_neg_frames_and_agreed_poi(
+    ckpt_dir: Path,
+    cfg: Any,
+    seed: int,
+    capture_frame: Callable[..., dict],
+    describe_actions: Callable[..., str],
+) -> tuple[list[dict], int | None]:
+    """Like rollout_episode_frames_for_gif but also returns the agreed_poi index."""
+    import torch as th
+
+    epymarl_src = PROJECT_ROOT / "epymarl" / "src"
+    if not epymarl_src.is_dir():
+        raise FileNotFoundError(f"EPyMARL not found at {epymarl_src}.")
+
+    (ReplayBuffer, OneHot, mac_REGISTRY, le_REGISTRY, r_REGISTRY, Logger, get_logger) = (
+        _load_epymarl_rollout_modules(epymarl_src)
+    )
+
+    args = cfg
+    args.seed = seed
+    if isinstance(args.env_args, dict):
+        args.env_args["seed"] = seed
+    else:
+        args.env_args.seed = seed
+
+    logger = Logger(get_logger())
+    runner = r_REGISTRY[args.runner](args=args, logger=logger)
+    env_info = runner.get_env_info()
+    args.n_agents = env_info["n_agents"]
+    args.n_actions = env_info["n_actions"]
+    args.state_shape = env_info["state_shape"]
+
+    scheme: dict = {
+        "state": {"vshape": env_info["state_shape"]},
+        "obs": {"vshape": env_info["obs_shape"], "group": "agents"},
+        "actions": {"vshape": (1,), "group": "agents", "dtype": th.long},
+        "avail_actions": {"vshape": (env_info["n_actions"],), "group": "agents", "dtype": th.int},
+        "terminated": {"vshape": (1,), "dtype": th.uint8},
+    }
+    if args.common_reward:
+        scheme["reward"] = {"vshape": (1,)}
+    else:
+        scheme["reward"] = {"vshape": (args.n_agents,)}
+    groups = {"agents": args.n_agents}
+    preprocess = {"actions": ("actions_onehot", [OneHot(out_dim=args.n_actions)])}
+
+    buffer = ReplayBuffer(
+        scheme, groups, args.buffer_size, env_info["episode_limit"] + 1,
+        preprocess=preprocess,
+        device="cpu" if args.buffer_cpu_only else args.device,
+    )
+    mac = mac_REGISTRY[args.mac](buffer.scheme, groups, args)
+    runner.setup(scheme=scheme, groups=groups, preprocess=preprocess, mac=mac)
+    learner = le_REGISTRY[args.learner](mac, buffer.scheme, logger, args)
+    if args.use_cuda:
+        learner.cuda()
+
+    learner.load_models(str(ckpt_dir))
+    runner.t_env = int(ckpt_dir.name)
+    runner.reset()
+    try:
+        runner.env.reset(seed=seed)
+    except TypeError:
+        runner.env.reset()
+    grid = _unwrap_grid_negotiation(runner.env)
+    frames: list[dict] = [capture_frame(grid)]
+
+    terminated = False
+    runner.mac.init_hidden(batch_size=args.batch_size_run)
+
+    while not terminated:
+        pre_transition_data = {
+            "state": [runner.env.get_state()],
+            "avail_actions": [runner.env.get_avail_actions()],
+            "obs": [runner.env.get_obs()],
+        }
+        runner.batch.update(pre_transition_data, ts=runner.t)
+        actions = runner.mac.select_actions(
+            runner.batch, t_ep=runner.t, t_env=runner.t_env, test_mode=True,
+        )
+        act0 = actions[0]
+        act_list = act0.cpu().tolist() if hasattr(act0, "cpu") else act0
+        if act_list and isinstance(act_list[0], list):
+            flat = [int(x[0]) for x in act_list]
+        else:
+            flat = [int(x) for x in act_list]
+        agents = grid.possible_agents
+        actions_dict = {agents[i]: flat[i] for i in range(min(len(agents), len(flat)))}
+        desc = describe_actions(grid, actions_dict)
+        _, reward, term, trunc, _ = runner.env.step(actions[0])
+        terminated = bool(term or trunc)
+        post_transition_data = {
+            "actions": actions,
+            "terminated": [(terminated != False,)],
+        }
+        if args.common_reward:
+            post_transition_data["reward"] = [(reward,)]
+        else:
+            post_transition_data["reward"] = [tuple(reward)]
+        runner.batch.update(post_transition_data, ts=runner.t)
+        frames.append(capture_frame(grid, action_desc=desc))
+        runner.t += 1
+        last_data = {
+            "state": [runner.env.get_state()],
+            "avail_actions": [runner.env.get_avail_actions()],
+            "obs": [runner.env.get_obs()],
+        }
+        runner.batch.update(last_data, ts=runner.t)
+        actions = runner.mac.select_actions(
+            runner.batch, t_ep=runner.t, t_env=runner.t_env, test_mode=True,
+        )
+        runner.batch.update({"actions": actions}, ts=runner.t)
+
+    agreed_poi: int | None = getattr(grid, "agreed_poi", None)
+    runner.close_env()
+    return frames, agreed_poi
+
+
+def rollout_two_phase_frames_for_gif(
+    neg_ckpt_dir: Path,
+    nav_ckpt_dir: Path,
+    neg_cfg: Any,
+    nav_cfg: Any,
+    seed: int,
+    capture_frame: Callable[..., dict],
+    describe_actions: Callable[..., str],
+) -> list[dict]:
+    """Run neg specialist, extract agreed POI, run nav specialist with that POI, merge frames."""
+    neg_frames, agreed_poi = _rollout_neg_frames_and_agreed_poi(
+        neg_ckpt_dir, neg_cfg, seed, capture_frame, describe_actions
+    )
+    nav_options = {"agreed_poi": agreed_poi} if agreed_poi is not None else None
+    nav_frames = rollout_episode_frames_for_gif(
+        nav_ckpt_dir, nav_cfg, seed, capture_frame, describe_actions, env_options=nav_options
+    )
+    return neg_frames + nav_frames
